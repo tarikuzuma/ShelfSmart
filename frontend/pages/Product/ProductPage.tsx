@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Leaf } from "lucide-react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import PriceHistoryGraph from "../../components/PriceHistoryGraph";
 
 type Product = {
@@ -22,6 +22,7 @@ type ProductBatch = {
 
 export default function ProductPage() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
   const [batches, setBatches] = useState<ProductBatch[]>([]);
@@ -39,7 +40,17 @@ export default function ProductPage() {
         setProduct(prodRes.data);
         setBatches(batchRes.data);
         if (batchRes.data.length > 0) {
-          setSelectedBatchId(batchRes.data[0].id);
+          // Use batchId from URL if present, else default to first non-expired batch
+          const batchIdParam = searchParams.get("batchId");
+          const today = new Date().toISOString().slice(0, 10);
+          const nonExpired = batchRes.data.filter((b: ProductBatch) => b.expiry_date >= today);
+          if (batchIdParam) {
+            const batchIdNum = Number(batchIdParam);
+            const found = batchRes.data.find((b: ProductBatch) => b.id === batchIdNum);
+            setSelectedBatchId(found ? found.id : (nonExpired[0]?.id ?? batchRes.data[0].id));
+          } else {
+            setSelectedBatchId(nonExpired[0]?.id ?? batchRes.data[0].id);
+          }
         }
       } catch (err) {
         setError("Failed to load product details.");
@@ -48,9 +59,27 @@ export default function ProductPage() {
       }
     }
     fetchData();
-  }, [id]);
+  }, [id, searchParams]);
 
   const selectedBatch = batches.find(b => b.id === selectedBatchId) ?? null;
+
+  // Fetch latest discounted price for selected batch
+  const [latestPrice, setLatestPrice] = useState<number | null>(null);
+  useEffect(() => {
+    async function fetchPrice() {
+      if (!selectedBatch) {
+        setLatestPrice(null);
+        return;
+      }
+      try {
+        const priceRes = await api.get(`/api/v1/product-batch-discounted-price/?product_batch_id=${selectedBatch.id}`);
+        setLatestPrice(priceRes.data.discounted_price);
+      } catch {
+        setLatestPrice(selectedBatch.base_price);
+      }
+    }
+    fetchPrice();
+  }, [selectedBatch]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -94,7 +123,16 @@ export default function ProductPage() {
                 <div className="mb-6">
                   <div className="mb-2 text-sm text-muted-foreground">Expiration Date: <span className="font-semibold text-foreground">{new Date(selectedBatch.expiry_date).toLocaleDateString()}</span></div>
                   <div className="mb-2 text-sm text-muted-foreground">Quantity: <span className="font-semibold text-foreground">{selectedBatch.quantity}</span></div>
-                  <div className="mb-2 text-sm text-muted-foreground">Price: <span className="font-semibold text-foreground">₱{selectedBatch.base_price.toFixed(2)}</span></div>
+                  <div className="mb-2 text-sm text-muted-foreground">Price: <span className="font-semibold text-foreground">
+                    {latestPrice !== null && latestPrice !== selectedBatch.base_price ? (
+                      <>
+                        <span className="line-through text-muted-foreground mr-2">₱{selectedBatch.base_price.toFixed(2)}</span>
+                        <span className="font-bold text-primary">₱{latestPrice.toFixed(2)}</span>
+                      </>
+                    ) : (
+                      <span className="font-bold text-primary">₱{selectedBatch.base_price.toFixed(2)}</span>
+                    )}
+                  </span></div>
                 </div>
               )}
               <Button variant="hero" size="lg" disabled={!selectedBatch}>Order From This Batch</Button>

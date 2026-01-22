@@ -4,7 +4,7 @@ from datetime import date, timedelta, datetime
 from sqlalchemy.orm import Session
 from database import SessionLocal
 from models import ProductBatch, ProductPrice
-from seeder import next_day_price, PRODUCT_PRICE_RANGES
+from seeder import get_discounted_price, PRODUCT_PRICE_RANGES
 
 def parse_date_arg():
     if len(sys.argv) > 1:
@@ -28,19 +28,9 @@ target_date = parse_date_arg()
 def update_prices_for_date(db: Session, target_date: date):
     batches = db.query(ProductBatch).all()
     for batch in batches:
-        # Get latest price before target_date
-        latest_price_obj = (
-            db.query(ProductPrice)
-            .filter_by(product_batch_id=batch.id)
-            .filter(ProductPrice.date < target_date)
-            .order_by(ProductPrice.date.desc())
-            .first()
-        )
-        if not latest_price_obj:
-            continue
-        prev_price = latest_price_obj.discounted_price
-        min_price, max_price = PRODUCT_PRICE_RANGES.get(batch.product.name, (batch.base_price * 0.7, batch.base_price))
-        new_price = next_day_price(prev_price, min_price, max_price)
+        # Use tiered discount logic
+        days_to_expiry = (batch.expiry_date - target_date).days
+        new_price = get_discounted_price(batch.base_price, days_to_expiry)
         db.add(ProductPrice(product_batch_id=batch.id, date=target_date, discounted_price=new_price))
     db.commit()
     print(f"Updated prices for {len(batches)} batches for {target_date}")

@@ -15,7 +15,17 @@ def get_db():
     finally:
         db.close()
 
-
+# Get today's discounted price for a product batch
+@router.get("/product-batch-discounted-price/")
+def get_product_batch_discounted_price(product_batch_id: int, db: Session = Depends(get_db)):
+    today = date.today()
+    price_obj = db.query(models.ProductPrice).filter(models.ProductPrice.product_batch_id == product_batch_id, models.ProductPrice.date == today).first()
+    if price_obj:
+        return {"discounted_price": price_obj.discounted_price}
+    batch = db.query(models.ProductBatch).filter(models.ProductBatch.id == product_batch_id).first()
+    if batch:
+        return {"discounted_price": batch.base_price}
+    raise HTTPException(status_code=404, detail="Batch not found")
 
 # Products
 @router.post("/products/", response_model=schemas.Product)

@@ -40,14 +40,14 @@ export default function Marketplace() {
         setProducts(prodRes.data);
         const batchRes = await api.get("/api/v1/product-batches/");
         setBatches(batchRes.data);
-        // Initial price fetch
+        // Initial price fetch for today only
+        const today = new Date().toISOString().slice(0, 10);
         const prices: Record<number, number> = {};
         await Promise.all(batchRes.data.map(async (batch: ProductBatch) => {
-          const priceRes = await api.get(`/api/v1/product-prices/?product_batch_id=${batch.id}`);
-          if (priceRes.data.length > 0) {
-            const latest = priceRes.data.reduce((a, b) => new Date(a.date) > new Date(b.date) ? a : b);
-            prices[batch.id] = latest.discounted_price;
-          } else {
+          try {
+            const priceRes = await api.get(`/api/v1/product-batch-discounted-price/?product_batch_id=${batch.id}`);
+            prices[batch.id] = priceRes.data.discounted_price;
+          } catch {
             prices[batch.id] = batch.base_price;
           }
         }));
@@ -68,11 +68,10 @@ export default function Marketplace() {
     async function pollPrices() {
       const prices: Record<number, number> = {};
       await Promise.all(batches.map(async (batch: ProductBatch) => {
-        const priceRes = await api.get(`/api/v1/product-prices/?product_batch_id=${batch.id}`);
-        if (priceRes.data.length > 0) {
-          const latest = priceRes.data.reduce((a, b) => new Date(a.date) > new Date(b.date) ? a : b);
-          prices[batch.id] = latest.discounted_price;
-        } else {
+        try {
+          const priceRes = await api.get(`/api/v1/product-batch-discounted-price/?product_batch_id=${batch.id}`);
+          prices[batch.id] = priceRes.data.discounted_price;
+        } catch {
           prices[batch.id] = batch.base_price;
         }
       }));
@@ -100,9 +99,12 @@ export default function Marketplace() {
       const matchesQuery = product.name.toLowerCase().includes(query.toLowerCase());
       const matchesCategory =
         selectedCategory === "All Categories" || product.category === selectedCategory;
-      return matchesQuery && matchesCategory;
+      // Only show products with at least one non-expired batch
+      const today = new Date().toISOString().slice(0, 10);
+      const productBatches = batches.filter(b => b.product_id === product.id && b.expiry_date >= today);
+      return matchesQuery && matchesCategory && productBatches.length > 0;
     });
-  }, [products, query, selectedCategory]);
+  }, [products, query, selectedCategory, batches]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -192,13 +194,18 @@ export default function Marketplace() {
               </div>
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
                 {filteredProducts.map((product) => {
-                  // Find all batches for this product
-                  const productBatches = batches.filter(b => b.product_id === product.id);
-                  // Find batch with lowest latest price
-                  const lowestBatch = productBatches.reduce((min, b) => {
+                  // Only use non-expired batches for preview
+                  const today = new Date().toISOString().slice(0, 10);
+                  const productBatches = batches.filter(b => b.product_id === product.id && b.expiry_date >= today);
+                  // Find batch with lowest price and earliest expiry
+                  const sortedBatches = productBatches.slice().sort((a, b) => new Date(a.expiry_date) - new Date(b.expiry_date));
+                  const lowestBatch = sortedBatches.reduce((min, b) => {
                     const price = batchPrices[b.id] ?? b.base_price;
                     const minPrice = batchPrices[min?.id] ?? min?.base_price;
-                    return min === null || price < minPrice ? b : min;
+                    if (min === null) return b;
+                    if (price < minPrice) return b;
+                    if (price === minPrice && new Date(b.expiry_date) < new Date(min.expiry_date)) return b;
+                    return min;
                   }, null);
                   const latestPrice = lowestBatch ? batchPrices[lowestBatch.id] ?? lowestBatch.base_price : null;
                   return (
@@ -243,7 +250,7 @@ export default function Marketplace() {
                           </p>
                         )}
                         <div className="mt-4 grid grid-cols-2 gap-3">
-                          <Button variant="outline" onClick={() => navigate(`/product/${product.id}`)}>Details</Button>
+                          <Button variant="outline" onClick={() => navigate(`/product/${product.id}?batchId=${lowestBatch?.id}`)}>Details</Button>
                           <Button onClick={() => addToCart(product)}>
                             <ShoppingBag className="h-4 w-4" />
                             Quick Add
