@@ -23,6 +23,7 @@ type ProductBatch = {
 export default function Marketplace() {
   const [products, setProducts] = useState<Product[]>([]);
   const [batches, setBatches] = useState<ProductBatch[]>([]);
+  const [batchPrices, setBatchPrices] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cart, setCart] = useState<Product[]>([]);
@@ -39,6 +40,19 @@ export default function Marketplace() {
         setProducts(prodRes.data);
         const batchRes = await api.get("/api/v1/product-batches/");
         setBatches(batchRes.data);
+        // Fetch latest price for each batch
+        const prices: Record<number, number> = {};
+        await Promise.all(batchRes.data.map(async (batch: ProductBatch) => {
+          const priceRes = await api.get(`/api/v1/product-prices/?product_batch_id=${batch.id}`);
+          if (priceRes.data.length > 0) {
+            // Get latest by date
+            const latest = priceRes.data.reduce((a, b) => new Date(a.date) > new Date(b.date) ? a : b);
+            prices[batch.id] = latest.discounted_price;
+          } else {
+            prices[batch.id] = batch.base_price;
+          }
+        }));
+        setBatchPrices(prices);
       } catch (err) {
         setError("Failed to load products.");
       } finally {
@@ -160,8 +174,13 @@ export default function Marketplace() {
                 {filteredProducts.map((product) => {
                   // Find all batches for this product
                   const productBatches = batches.filter(b => b.product_id === product.id);
-                  // Find lowest price batch
-                  const lowestBatch = productBatches.reduce((min, b) => min === null || b.base_price < min.base_price ? b : min, null);
+                  // Find batch with lowest latest price
+                  const lowestBatch = productBatches.reduce((min, b) => {
+                    const price = batchPrices[b.id] ?? b.base_price;
+                    const minPrice = batchPrices[min?.id] ?? min?.base_price;
+                    return min === null || price < minPrice ? b : min;
+                  }, null);
+                  const latestPrice = lowestBatch ? batchPrices[lowestBatch.id] ?? lowestBatch.base_price : null;
                   return (
                     <div
                       key={product.id}
@@ -171,7 +190,6 @@ export default function Marketplace() {
                         <div className="absolute left-3 top-3 h-3 w-3 rounded-full bg-destructive" />
                         <Badge className="absolute right-3 top-3" variant="secondary">
                           Fresh
-                          {/* TO DO: set this dynamically, maybe like if its only a month from produce being shipped */}
                         </Badge>
                         <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
                           <Leaf className="h-8 w-8 text-primary" />
@@ -190,7 +208,14 @@ export default function Marketplace() {
                               className="underline cursor-pointer"
                               onClick={() => navigate(`/product/${product.id}`)}
                             >
-                              ₱{lowestBatch.base_price.toFixed(2)}
+                              {latestPrice !== lowestBatch.base_price ? (
+                                <>
+                                  <span className="line-through text-muted-foreground mr-2">₱{lowestBatch.base_price.toFixed(2)}</span>
+                                  <span className="font-bold text-primary">₱{latestPrice.toFixed(2)}</span>
+                                </>
+                              ) : (
+                                <span className="font-bold text-primary">₱{lowestBatch.base_price.toFixed(2)}</span>
+                              )}
                             </span>
                             {productBatches.length > 1 && (
                               <span className="ml-2 text-xs text-muted-foreground">({productBatches.length} batches)</span>
