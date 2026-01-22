@@ -1,17 +1,8 @@
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 
-type PriceHistoryGraphProps = {
-  batchId: number;
-};
-
-type Price = {
-  date: string;
-  discounted_price: number;
-};
-
-export default function PriceHistoryGraph({ batchId }: PriceHistoryGraphProps) {
-  const [prices, setPrices] = useState<Price[]>([]);
+export default function PriceHistoryGraph({ batchId }) {
+  const [prices, setPrices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -37,9 +28,9 @@ export default function PriceHistoryGraph({ batchId }: PriceHistoryGraphProps) {
   if (prices.length === 0) return <div className="text-muted-foreground">No price history available.</div>;
 
   // Prepare data for graph
-  const data = prices.map((p) => ({
-    date: p.date ? new Date(p.date).toLocaleDateString() : "",
-    price: p.discounted_price ?? 0,
+  const data = prices.map(p => ({
+    date: new Date(p.date).toLocaleDateString(),
+    price: p.discounted_price
   }));
 
   // Simple SVG line graph
