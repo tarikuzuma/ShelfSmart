@@ -152,6 +152,12 @@ export default function VendorDashboard() {
 							</p>
 						</div>
 						<div className="flex flex-wrap gap-3">
+							<Button variant="hero" size="lg" asChild>
+								<Link to="/retailer/add-product">
+									<Package className="h-4 w-4 mr-2" />
+									Add Product
+								</Link>
+							</Button>
 							<Button variant="hero" size="lg">
 								<TrendingUp className="h-4 w-4" />
 								View Weekly Report
