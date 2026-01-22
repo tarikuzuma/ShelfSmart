@@ -10,6 +10,9 @@ from passlib.context import CryptContext
 router = APIRouter(prefix="/api/v1")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# In-memory subscription storage: { userId: [retailerId1, retailerId2, ...] }
+subscribed_retailers: dict = {}
+
 def get_db():
     db = SessionLocal()
     try:
@@ -40,6 +43,12 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
     if not db_user or not pwd_context.verify(user.password, db_user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     return db_user
+
+@router.get("/retailers/", response_model=List[schemas.User])
+def get_retailers(db: Session = Depends(get_db)):
+    """Get all retailers (users with RETAILER role)"""
+    retailers = db.query(models.User).filter(models.User.role == "RETAILER").all()
+    return retailers
 
 
 
@@ -175,3 +184,31 @@ def read_orders(date_from: Optional[date] = Query(None), date_to: Optional[date]
     for order in orders:
         order.items = db.query(models.OrderItem).filter_by(order_id=order.id).all()
     return orders
+
+# Subscription endpoints (in-memory storage)
+@router.post("/subscriptions/{user_id}/{retailer_id}")
+def subscribe_to_retailer(user_id: int, retailer_id: int):
+    """Subscribe a user to a retailer for price alerts"""
+    if user_id not in subscribed_retailers:
+        subscribed_retailers[user_id] = []
+    if retailer_id not in subscribed_retailers[user_id]:
+        subscribed_retailers[user_id].append(retailer_id)
+    return {"message": "Subscribed successfully", "subscriptions": subscribed_retailers[user_id]}
+
+@router.delete("/subscriptions/{user_id}/{retailer_id}")
+def unsubscribe_from_retailer(user_id: int, retailer_id: int):
+    """Unsubscribe a user from a retailer"""
+    if user_id in subscribed_retailers:
+        subscribed_retailers[user_id] = [r for r in subscribed_retailers[user_id] if r != retailer_id]
+    return {"message": "Unsubscribed successfully", "subscriptions": subscribed_retailers.get(user_id, [])}
+
+@router.get("/subscriptions/{user_id}")
+def get_user_subscriptions(user_id: int):
+    """Get all retailers a user is subscribed to"""
+    return {"user_id": user_id, "retailer_ids": subscribed_retailers.get(user_id, [])}
+
+@router.get("/subscriptions/retailer/{retailer_id}/users")
+def get_subscribed_users(retailer_id: int):
+    """Get all users subscribed to a retailer (for price drop notifications)"""
+    subscribed_users = [uid for uid, retailer_ids in subscribed_retailers.items() if retailer_id in retailer_ids]
+    return {"retailer_id": retailer_id, "user_ids": subscribed_users}

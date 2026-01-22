@@ -6,10 +6,12 @@ import Marketplace from '../pages/Marketplace/Marketplace'
 import ProductPage from '../pages/Product/ProductPage'
 import Signup from '../pages/Signup'
 import Login from '../pages/Login'
+import { Toaster } from '@/components/ui/toast'
 
 function App() {
   return (
     <Router>
+      <Toaster />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/signup" element={<Signup />} />
