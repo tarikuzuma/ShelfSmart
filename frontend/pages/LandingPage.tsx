@@ -64,10 +64,10 @@ export default function LandingPage() {
           </div>
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" asChild>
-              <Link to="/marketplace">Consumer App</Link>
+              <Link to="/login">Sign In</Link>
             </Button>
             <Button variant="hero" size="sm" asChild>
-              <Link to="/dashboard">Retailer Dashboard</Link>
+              <Link to="/signup">Sign Up</Link>
             </Button>
           </div>
         </div>
@@ -98,7 +98,7 @@ export default function LandingPage() {
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in-up" style={{ animationDelay: "0.2s" }}>
               <Button variant="hero" size="xl" asChild>
-                <Link to="/dashboard">
+                <Link to="retailer/dashboard">
                   <Building2 className="h-5 w-5" />
                   For Retailers
                   <ArrowRight className="h-5 w-5" />
@@ -200,7 +200,7 @@ export default function LandingPage() {
                 ))}
               </ul>
               <Button variant="hero" asChild>
-                <Link to="/dashboard">
+                <Link to="retailer/dashboard">
                   Access Dashboard
                   <ArrowRight className="h-4 w-4" />
                 </Link>

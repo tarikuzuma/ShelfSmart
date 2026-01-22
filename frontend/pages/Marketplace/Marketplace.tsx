@@ -3,7 +3,7 @@ import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Logo } from "@/components/Logo";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { ChevronDown, Leaf, Search, ShoppingBag, Trash2 } from "lucide-react";
 
 type Product = {
@@ -28,7 +28,23 @@ export default function Marketplace() {
   const [cart, setCart] = useState<Product[]>([]);
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    // Check if user is logged in by checking for token in localStorage
+    const checkLoginStatus = () => {
+      const token = localStorage.getItem("token");
+      setIsLoggedIn(!!token);
+    };
+    
+    checkLoginStatus();
+    
+    // Also check when window gains focus (in case user logged in another tab)
+    window.addEventListener("focus", checkLoginStatus);
+    return () => window.removeEventListener("focus", checkLoginStatus);
+  }, [location.pathname]); // Re-check when route changes
 
   useEffect(() => {
     async function fetchProducts() {
@@ -49,7 +65,19 @@ export default function Marketplace() {
   }, []);
 
   function addToCart(product: Product) {
+    if (!isLoggedIn) {
+      // Redirect to login if not logged in
+      navigate("/login");
+      return;
+    }
     setCart((prev) => [...prev, product]);
+  }
+
+  function handleSignOut() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setIsLoggedIn(false);
+    navigate("/login");
   }
 
   function removeFromCart(productId: number) {
@@ -81,9 +109,15 @@ export default function Marketplace() {
             </Link>
             <span className="text-primary font-semibold">Marketplace</span>
           </div>
-          <Button variant="hero" size="sm">
-            Sign In
-          </Button>
+          {isLoggedIn ? (
+            <Button variant="hero" size="sm" onClick={handleSignOut}>
+              Sign Out
+            </Button>
+          ) : (
+            <Button variant="hero" size="sm" asChild>
+              <Link to="/login">Sign In</Link>
+            </Button>
+          )}
         </div>
       </nav>
 
@@ -161,7 +195,9 @@ export default function Marketplace() {
                   // Find all batches for this product
                   const productBatches = batches.filter(b => b.product_id === product.id);
                   // Find lowest price batch
-                  const lowestBatch = productBatches.reduce((min, b) => min === null || b.base_price < min.base_price ? b : min, null);
+                  const lowestBatch = productBatches.length > 0 
+                    ? productBatches.reduce((min, b) => b.base_price < min.base_price ? b : min)
+                    : null;
                   return (
                     <div
                       key={product.id}
@@ -198,7 +234,11 @@ export default function Marketplace() {
                         )}
                         <div className="mt-4 grid grid-cols-2 gap-3">
                           <Button variant="outline" onClick={() => navigate(`/product/${product.id}`)}>Details</Button>
-                          <Button onClick={() => addToCart(product)}>
+                          <Button 
+                            onClick={() => addToCart(product)}
+                            disabled={!isLoggedIn}
+                            title={!isLoggedIn ? "Please sign in to add items to cart" : ""}
+                          >
                             <ShoppingBag className="h-4 w-4" />
                             Add
                           </Button>
