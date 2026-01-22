@@ -4,63 +4,106 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 import { BarChart3, Bell, CheckCircle, Clock, Leaf, Package, RefreshCw, Route, ShoppingBag, Store, TrendingUp, TriangleAlert } from "lucide-react";
+
 import { SoldVsSpoilage } from "@/components/vendordashboard/SoldVsSpoilage";
 import { InventoryByCategory } from "@/components/vendordashboard/InventoryByCategory";
-// import { ProductHighlights } from "@/components/vendordashboard/ProductHighlights";
 import { AlertsList } from "@/components/vendordashboard/AlertsList";
 import { SalesPerformanceChart } from "@/components/vendordashboard/SalesPerformanceChart";
 import { ProductInventoryTable } from "@/components/vendordashboard/ProductInventoryTable";
-
-type SalesPoint = { label: string; value: number };
-
-const salesData: SalesPoint[] = [
-	{ label: "Mon", value: 120 },
-	{ label: "Tue", value: 180 },
-	{ label: "Wed", value: 150 },
-	{ label: "Thu", value: 220 },
-	{ label: "Fri", value: 280 },
-	{ label: "Sat", value: 260 },
-	{ label: "Sun", value: 320 },
-];
-
-const inventoryByCategory = [
-	{ label: "Produce", value: 420 },
-	{ label: "Meat", value: 180 },
-	{ label: "Dairy", value: 260 },
-	{ label: "Bakery", value: 140 },
-	{ label: "Ready-to-eat", value: 120 },
-	{ label: "Snacks", value: 200 },
-];
-
-
-
-const alerts = [
-	{
-		name: "Strawberry Pack 250g",
-		action: "Promote 25% off",
-		status: "High priority",
-		time: "Expires in 10 hours",
-	},
-	{
-		name: "Chicken Breast 1kg",
-		action: "Auto-discount 20%",
-		status: "Medium priority",
-		time: "Expires in 1 day",
-	},
-	{
-		name: "Greek Yogurt 500ml",
-		action: "Bundle with granola",
-		status: "Opportunity",
-		time: "Expires in 2 days",
-	},
-];
+import { useEffect, useState } from "react";
+import api from "@/lib/api";
 
 
 
 export default function VendorDashboard() {
-	// TODO: Replace static data with API-driven data where possible
-	const sold = 820; // Replace with real API data
-	const spoilage = 120; // Replace with real API data
+	const [products, setProducts] = useState<any[]>([]);
+	const [batches, setBatches] = useState<any[]>([]);
+	const [inventories, setInventories] = useState<any[]>([]);
+	const [orders, setOrders] = useState<any[]>([]);
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState("");
+
+	useEffect(() => {
+		async function fetchAll() {
+			setLoading(true);
+			setError("");
+			try {
+				const [prodRes, batchRes, invRes, orderRes] = await Promise.all([
+					api.get(`/api/v1/products/`),
+					api.get(`/api/v1/product-batches/`),
+					api.get(`/api/v1/inventories/`),
+					api.get(`/api/v1/orders/`),
+				]);
+				setProducts(prodRes.data);
+				setBatches(batchRes.data);
+				setInventories(invRes.data);
+				setOrders(orderRes.data);
+			} catch (err) {
+				setError("Failed to load dashboard data");
+			} finally {
+				setLoading(false);
+			}
+		}
+		fetchAll();
+	}, []);
+
+	// Inventory by category
+	const inventoryByCategory = (() => {
+		const catMap: Record<string, number> = {};
+		products.forEach((p) => {
+			const invs = inventories.filter((i) => i.product_id === p.id);
+			const latest = invs.reduce((a, b) => (a && a.date > b.date ? a : b), null);
+			if (latest) {
+				catMap[p.category || "Uncategorized"] = (catMap[p.category || "Uncategorized"] || 0) + latest.quantity;
+			}
+		});
+		return Object.entries(catMap).map(([label, value]) => ({ label, value }));
+	})();
+
+	// Sold and spoilage (estimate: sold from orders, spoilage from expired batches)
+	const sold = orders.reduce((sum: number, order: any) => sum + order.items.reduce((s: number, i: any) => s + i.quantity, 0), 0);
+	const now = new Date();
+	const spoilage = batches.filter(b => new Date(b.expiry_date) < now).reduce((sum, b) => sum + b.quantity, 0);
+
+	// Sales data (last 7 days revenue)
+	const salesByDay: Record<string, number> = {};
+	orders.forEach(order => {
+		const d = new Date(order.date);
+		const label = d.toLocaleDateString(undefined, { weekday: 'short' });
+		salesByDay[label] = (salesByDay[label] || 0) + order.total_price;
+	});
+	const weekDays = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+	const todayIdx = new Date().getDay();
+	const last7 = Array.from({length: 7}, (_, i) => (todayIdx - 6 + i + 7) % 7);
+	const salesData = last7.map(idx => {
+		const label = weekDays[idx];
+		return { label, value: salesByDay[label] || 0 };
+	});
+
+	// Alerts (expiring soon)
+	const alerts = batches
+		.filter(b => {
+			const days = (new Date(b.expiry_date).getTime() - now.getTime()) / (1000*60*60*24);
+			return days >= 0 && days <= 3;
+		})
+		.map(b => {
+			const product = products.find(p => p.id === b.product_id);
+			return {
+				name: product ? product.name : `Batch #${b.id}`,
+				action: `Expires in ${Math.ceil((new Date(b.expiry_date).getTime() - now.getTime())/(1000*60*60*24))} days`,
+				status: "High priority",
+				time: `Expires on ${new Date(b.expiry_date).toLocaleDateString()}`,
+			};
+		});
+
+
+
+	if (loading) {
+		return <div className="flex items-center justify-center h-screen text-lg text-muted-foreground">Loading dashboard...</div>;
+	}
+	if (error) {
+		return <div className="flex items-center justify-center h-screen text-lg text-red-600">{error}</div>;
+	}
 
 	return (
 		<div className="min-h-screen bg-background">
@@ -113,10 +156,12 @@ export default function VendorDashboard() {
 								<TrendingUp className="h-4 w-4" />
 								View Weekly Report
 							</Button>
-							<Button variant="heroOutline" size="lg">
-								<ShoppingBag className="h-4 w-4" />
-								Launch Promotions
-							</Button>
+							<Link to="/retailer/products">
+								<Button variant="heroOutline" size="lg">
+									<ShoppingBag className="h-4 w-4" />
+									View Products List
+								</Button>
+							</Link>
 						</div>
 					</div>
 				</div>
@@ -175,43 +220,57 @@ export default function VendorDashboard() {
 
 						{/* Metrics Cards (static for now) */}
 						<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-							{[
-								{ label: "Total Items", value: "1,240", icon: Package, tone: "primary" },
-								{ label: "Near-Expiry", value: "180", icon: Clock, tone: "warning" },
-								{ label: "Urgent", value: "42", icon: TriangleAlert, tone: "destructive" },
-								{ label: "Sold Today", value: "680", icon: ShoppingBag, tone: "primary" },
-							].map((metric, index) => (
-								<div
-									key={metric.label}
-									className="rounded-2xl border border-border/60 bg-card p-4 hover-lift animate-fade-in-up"
-									style={{ animationDelay: `${0.1 + index * 0.05}s` }}
-								>
-									<div className="flex items-center justify-between">
-										<p className="text-xs text-muted-foreground">{metric.label}</p>
-										<div
-											className={`h-9 w-9 rounded-xl flex items-center justify-center ${
-												metric.tone === "warning"
-													? "bg-warning/10"
-													: metric.tone === "destructive"
-													? "bg-destructive/10"
-													: "bg-primary/10"
-											}`}
-										>
-											<metric.icon
-												className={`h-4 w-4 ${
-													metric.tone === "warning"
-														? "text-warning"
-														: metric.tone === "destructive"
-														? "text-destructive"
-														: "text-primary"
-												}`}
-											/>
-										</div>
+							{/* Real metrics from API */}
+							<div className="rounded-2xl border border-border/60 bg-card p-4 hover-lift animate-fade-in-up">
+								<div className="flex items-center justify-between">
+									<p className="text-xs text-muted-foreground">Total Items</p>
+									<div className="h-9 w-9 rounded-xl flex items-center justify-center bg-primary/10">
+										<Package className="h-4 w-4 text-primary" />
 									</div>
-									<p className="mt-2 font-display text-2xl font-bold text-foreground">{metric.value}</p>
-									<p className="text-xs text-muted-foreground">Updated 5 mins ago</p>
 								</div>
-							))}
+								<p className="mt-2 font-display text-2xl font-bold text-foreground">{products.length}</p>
+								<p className="text-xs text-muted-foreground">Updated now</p>
+							</div>
+							<div className="rounded-2xl border border-border/60 bg-card p-4 hover-lift animate-fade-in-up">
+								<div className="flex items-center justify-between">
+									<p className="text-xs text-muted-foreground">Near-Expiry</p>
+									<div className="h-9 w-9 rounded-xl flex items-center justify-center bg-warning/10">
+										<Clock className="h-4 w-4 text-warning" />
+									</div>
+								</div>
+								<p className="mt-2 font-display text-2xl font-bold text-foreground">{batches.filter(b => {
+									const days = (new Date(b.expiry_date).getTime() - now.getTime()) / (1000*60*60*24);
+									return days >= 0 && days <= 7;
+								}).length}</p>
+								<p className="text-xs text-muted-foreground">Next 7 days</p>
+							</div>
+							<div className="rounded-2xl border border-border/60 bg-card p-4 hover-lift animate-fade-in-up">
+								<div className="flex items-center justify-between">
+									<p className="text-xs text-muted-foreground">Urgent</p>
+									<div className="h-9 w-9 rounded-xl flex items-center justify-center bg-destructive/10">
+										<TriangleAlert className="h-4 w-4 text-destructive" />
+									</div>
+								</div>
+								<p className="mt-2 font-display text-2xl font-bold text-foreground">{batches.filter(b => {
+									const days = (new Date(b.expiry_date).getTime() - now.getTime()) / (1000*60*60*24);
+									return days >= 0 && days <= 3;
+								}).length}</p>
+								<p className="text-xs text-muted-foreground">Next 3 days</p>
+							</div>
+							<div className="rounded-2xl border border-border/60 bg-card p-4 hover-lift animate-fade-in-up">
+								<div className="flex items-center justify-between">
+									<p className="text-xs text-muted-foreground">Sold Today</p>
+									<div className="h-9 w-9 rounded-xl flex items-center justify-center bg-primary/10">
+										<ShoppingBag className="h-4 w-4 text-primary" />
+									</div>
+								</div>
+								<p className="mt-2 font-display text-2xl font-bold text-foreground">{orders.filter(o => {
+									const d = new Date(o.date);
+									const today = new Date();
+									return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+								}).reduce((sum: number, o: any) => sum + o.items.reduce((s: number, i: any) => s + i.quantity, 0), 0)}</p>
+								<p className="text-xs text-muted-foreground">Today</p>
+							</div>
 						</div>
 					</div>
 
@@ -241,7 +300,7 @@ export default function VendorDashboard() {
 				</section>
 
 				<section className="mt-8 grid gap-6 lg:grid-cols-2">
-					<InventoryByCategory data={inventoryByCategory} />
+					  <InventoryByCategory data={inventoryByCategory} />
 					<div className="rounded-3xl border border-border/60 bg-card p-6 hover-lift">
 						<div className="flex items-center justify-between">
 							<div>

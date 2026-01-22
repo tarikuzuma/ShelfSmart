@@ -9,8 +9,8 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<LandingPage />} />
-        <Route path="/retailer/dashboard-old" element={<VendorDashboard />} />
-        <Route path="/retailer/dashboard" element={<RetailerDashboard />} />
+        <Route path="/retailer/dashboard" element={<VendorDashboard />} />
+        <Route path="/retailer/products" element={<RetailerDashboard />} />
         <Route path="/marketplace" element={<Marketplace />} />
       </Routes>
     </Router>
