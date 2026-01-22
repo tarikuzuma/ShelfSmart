@@ -44,6 +44,7 @@ type CartItem = {
 export default function Marketplace() {
   const [products, setProducts] = useState<Product[]>([]);
   const [batches, setBatches] = useState<ProductBatch[]>([]);
+  const [batchPrices, setBatchPrices] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -58,18 +59,6 @@ export default function Marketplace() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  useEffect(() => {
-    // Load retailers
-    async function loadRetailers() {
-      try {
-        const res = await api.get("/api/v1/retailers/");
-        setRetailers(res.data);
-      } catch (err) {
-        console.error("Failed to load retailers:", err);
-      }
-    }
-    loadRetailers();
-  }, []);
 
   useEffect(() => {
     // Check if user is logged in by checking for token in localStorage
@@ -95,51 +84,49 @@ export default function Marketplace() {
     return () => window.removeEventListener("focus", checkLoginStatus);
   }, [location.pathname]); // Re-check when route changes
 
-  useEffect(() => {
-    async function fetchProducts() {
-      setLoading(true);
-      setError("");
-      try {
-        const prodRes = await api.get("/api/v1/products/");
-        const newProducts = prodRes.data;
-        const batchRes = await api.get("/api/v1/product-batches/");
-        const newBatches = batchRes.data;
-        
-        // Detect price changes for subscribed users (after we have both products and batches)
-        if (isLoggedIn && subscribedRetailerIds.length > 0 && newProducts.length > 0 && newBatches.length > 0) {
-          detectPriceChanges(newProducts, newBatches);
-        }
-        
-        // Update previous prices with retailer mapping
-        // For MVP: assign batches to retailers using a simple hash (batch_id % num_retailers)
-        const productIds = new Set<number>(newBatches.map((b: ProductBatch) => b.product_id));
-        productIds.forEach((productId: number) => {
-          const productBatches = newBatches.filter((b: ProductBatch) => b.product_id === productId);
-          if (productBatches.length > 0 && retailers.length > 0) {
-            // Find the batch with lowest price and assign it to a retailer
-            const lowestBatch = productBatches.reduce((min, b) => b.base_price < min.base_price ? b : min);
-            const retailerId = retailers[lowestBatch.id % retailers.length]?.id || retailers[0]?.id;
-            previousPricesRef.current.set(productId, {
-              price: lowestBatch.base_price,
-              retailerId: retailerId
-            });
-          }
-        });
-        
-        setProducts(newProducts);
-        setBatches(newBatches);
-      } catch (err) {
-        setError("Failed to load products.");
-      } finally {
-        setLoading(false);
+  
+useEffect(() => {
+  async function fetchProducts() {
+    setLoading(true);
+    setError("");
+    try {
+      const prodRes = await api.get("/api/v1/products/");
+      const newProducts = prodRes.data;
+      setProducts(newProducts); // Add this line!
+      
+      const batchRes = await api.get("/api/v1/product-batches/");
+      const newBatches = batchRes.data;
+      setBatches(newBatches);
+
+      // Detect price changes for subscribed users
+      if (isLoggedIn && subscribedRetailerIds.length > 0 && newProducts.length > 0 && newBatches.length > 0) {
+        detectPriceChanges(newProducts, newBatches);
       }
+
+      // Initial price fetch
+      const prices: Record<number, number> = {};
+      await Promise.all(newBatches.map(async (batch: ProductBatch) => {
+        try {
+          const priceRes = await api.get(`/api/v1/product-batch-discounted-price/?product_batch_id=${batch.id}`);
+          prices[batch.id] = priceRes.data.discounted_price;
+        } catch {
+          prices[batch.id] = batch.base_price;
+        }
+      }));
+      setBatchPrices(prices);
+    } catch (err) {
+      setError("Failed to load products.");
+    } finally {
+      setLoading(false);
     }
-    fetchProducts();
-    
-    // Poll for price updates every 30 seconds
-    const interval = setInterval(fetchProducts, 30000);
-    return () => clearInterval(interval);
-  }, [isLoggedIn, subscribedRetailerIds.length]);
+  }
+  
+  fetchProducts(); // Call it once when component mounts
+  
+  // Poll for price updates every 30 seconds
+  const interval = setInterval(fetchProducts, 30000);
+  return () => clearInterval(interval);
+}, [isLoggedIn, subscribedRetailerIds.length]);
   
   function detectPriceChanges(productsList: Product[], newBatches: ProductBatch[]) {
     if (subscribedRetailerIds.length === 0 || retailers.length === 0) return;
@@ -225,6 +212,27 @@ export default function Marketplace() {
       setSubscribedRetailerIds(subs);
     }
   }
+
+
+  // Poll only prices
+  useEffect(() => {
+    if (batches.length === 0) return;
+    let intervalId: NodeJS.Timeout;
+    async function pollPrices() {
+      const prices: Record<number, number> = {};
+      await Promise.all(batches.map(async (batch: ProductBatch) => {
+        try {
+          const priceRes = await api.get(`/api/v1/product-batch-discounted-price/?product_batch_id=${batch.id}`);
+          prices[batch.id] = priceRes.data.discounted_price;
+        } catch {
+          prices[batch.id] = batch.base_price;
+        }
+      }));
+      setBatchPrices(prices);
+    }
+    intervalId = setInterval(pollPrices, 10000);
+    return () => clearInterval(intervalId);
+  }, [batches]);
 
   function addToCart(product: Product) {
     if (!isLoggedIn) {
@@ -370,9 +378,12 @@ export default function Marketplace() {
       const matchesQuery = product.name.toLowerCase().includes(query.toLowerCase());
       const matchesCategory =
         selectedCategory === "All Categories" || product.category === selectedCategory;
-      return matchesQuery && matchesCategory;
+      // Only show products with at least one non-expired batch
+      const today = new Date().toISOString().slice(0, 10);
+      const productBatches = batches.filter(b => b.product_id === product.id && b.expiry_date >= today);
+      return matchesQuery && matchesCategory && productBatches.length > 0;
     });
-  }, [products, query, selectedCategory]);
+  }, [products, query, selectedCategory, batches]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -483,12 +494,20 @@ export default function Marketplace() {
               </div>
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
                 {filteredProducts.map((product) => {
-                  // Find all batches for this product
-                  const productBatches = batches.filter(b => b.product_id === product.id);
-                  // Find lowest price batch
-                  const lowestBatch = productBatches.length > 0 
-                    ? productBatches.reduce((min, b) => b.base_price < min.base_price ? b : min)
-                    : null;
+                  // Only use non-expired batches for preview
+                  const today = new Date().toISOString().slice(0, 10);
+                  const productBatches = batches.filter(b => b.product_id === product.id && b.expiry_date >= today);
+                  // Find batch with lowest price and earliest expiry
+                  const sortedBatches = productBatches.slice().sort((a, b) => new Date(a.expiry_date) - new Date(b.expiry_date));
+                  const lowestBatch = sortedBatches.reduce((min, b) => {
+                    const price = batchPrices[b.id] ?? b.base_price;
+                    const minPrice = batchPrices[min?.id] ?? min?.base_price;
+                    if (min === null) return b;
+                    if (price < minPrice) return b;
+                    if (price === minPrice && new Date(b.expiry_date) < new Date(min.expiry_date)) return b;
+                    return min;
+                  }, null);
+                  const latestPrice = lowestBatch ? batchPrices[lowestBatch.id] ?? lowestBatch.base_price : null;
                   return (
                     <div
                       key={product.id}
@@ -516,7 +535,14 @@ export default function Marketplace() {
                               className="underline cursor-pointer"
                               onClick={() => navigate(`/product/${product.id}`)}
                             >
-                              ₱{lowestBatch.base_price.toFixed(2)}
+                              {latestPrice !== lowestBatch.base_price ? (
+                                <>
+                                  <span className="line-through text-muted-foreground mr-2">₱{lowestBatch.base_price.toFixed(2)}</span>
+                                  <span className="font-bold text-primary">₱{latestPrice.toFixed(2)}</span>
+                                </>
+                              ) : (
+                                <span className="font-bold text-primary">₱{lowestBatch.base_price.toFixed(2)}</span>
+                              )}
                             </span>
                             {productBatches.length > 1 && (
                               <span className="ml-2 text-xs text-muted-foreground">({productBatches.length} batches)</span>
@@ -531,7 +557,7 @@ export default function Marketplace() {
                             title={!isLoggedIn ? "Please sign in to add items to cart" : ""}
                           >
                             <ShoppingBag className="h-4 w-4" />
-                            Add
+                            Quick Add
                           </Button>
                         </div>
                       </div>
