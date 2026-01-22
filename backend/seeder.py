@@ -27,12 +27,19 @@ PRODUCT_PRICE_RANGES = {
 
 # Helper to simulate next day price based on previous price and random walk
 
-def next_day_price(prev_price, min_price, max_price):
-    # Simulate a small random walk, with a bias to stay within min/max
-    change = random.uniform(-0.05, 0.05) * prev_price
-    new_price = prev_price + change
-    new_price = max(min_price, min(max_price, new_price))
-    return round(new_price, 2)
+# Tiered discount logic matching frontend
+def get_discounted_price(base_price, days_to_expiry):
+    if days_to_expiry >= 30:
+        return base_price
+    if days_to_expiry >= 15:
+        return round(base_price * 0.90, 2)
+    if days_to_expiry >= 8:
+        return round(base_price * 0.80, 2)
+    if days_to_expiry >= 4:
+        return round(base_price * 0.70, 2)
+    if days_to_expiry >= 1:
+        return round(base_price * 0.50, 2)
+    return round(base_price * 0.30, 2)
 
 def seed_data(db: Session, days: int = 7):
 
@@ -87,22 +94,26 @@ def seed_data(db: Session, days: int = 7):
     for batch in batches:
         db.refresh(batch)
 
-    # 3. Product Prices (simulate for N days per batch)
+    # Find earliest manufacture date
+    earliest_date = min(batch.manufacture_date for batch in batches)
+    num_days = (today - earliest_date).days + 1
+
+    # 3. Product Prices (simulate for each day from earliest manufacture date to today)
     for batch in batches:
-        price = batch.base_price
-        for d in range(days):
-            price_date = today - timedelta(days=days-d-1)
-            # Discount more as expiry approaches
+        for d in range(num_days):
+            price_date = earliest_date + timedelta(days=d)
+            if price_date > today:
+                break
             days_to_expiry = (batch.expiry_date - price_date).days
-            min_discount = 0.7 if days_to_expiry < 3 else 0.85
-            discounted_price = next_day_price(price, price * min_discount, price)
+            discounted_price = get_discounted_price(batch.base_price, days_to_expiry)
             db.add(ProductPrice(product_batch_id=batch.id, date=price_date, discounted_price=discounted_price))
-            price = discounted_price
     db.commit()
 
     # 4. Orders and OrderItems (simulate 1-3 orders per day, each with 1-3 items, only from non-expired batches)
-    for d in range(days):
-        order_date = today - timedelta(days=days-d-1)
+    for d in range(num_days):
+        order_date = earliest_date + timedelta(days=d)
+        if order_date > today:
+            break
         num_orders = random.randint(1, 3)
         for _ in range(num_orders):
             order_items = []
@@ -135,8 +146,10 @@ def seed_data(db: Session, days: int = 7):
             db.commit()
 
     # 5. Inventory snapshot per product per day
-    for d in range(days):
-        snap_date = today - timedelta(days=days-d-1)
+    for d in range(num_days):
+        snap_date = earliest_date + timedelta(days=d)
+        if snap_date > today:
+            break
         for product in products:
             # Sum all batch quantities up to this day
             batch_qty = db.query(ProductBatch).filter(ProductBatch.product_id == product.id, ProductBatch.manufacture_date <= snap_date).with_entities(ProductBatch.quantity).all()
