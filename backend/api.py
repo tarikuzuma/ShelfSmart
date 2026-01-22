@@ -160,14 +160,61 @@ def read_inventories(product_id: Optional[int] = Query(None), date_from: Optiona
 # Order endpoints
 @router.post("/orders/", response_model=schemas.Order)
 def create_order(order: schemas.OrderCreate, db: Session = Depends(get_db)):
+    # Create the order
     db_order = models.Order(date=order.date, total_price=order.total_price)
     db.add(db_order)
     db.commit()
     db.refresh(db_order)
-    # Add order items
+    
+    # Add order items and deduct from inventory
     for item in order.items:
-        db_item = models.OrderItem(order_id=db_order.id, product_id=item.product_id, quantity=item.quantity, price=item.price)
+        # Create order item
+        db_item = models.OrderItem(
+            order_id=db_order.id, 
+            product_id=item.product_id, 
+            quantity=item.quantity, 
+            price=item.price
+        )
         db.add(db_item)
+        
+        # Deduct from ProductBatch (find the batch with lowest price and deduct quantity)
+        batches = db.query(models.ProductBatch).filter(
+            models.ProductBatch.product_id == item.product_id
+        ).order_by(models.ProductBatch.base_price.asc()).all()
+        
+        remaining_quantity = item.quantity
+        for batch in batches:
+            if remaining_quantity <= 0:
+                break
+            if batch.quantity > 0:
+                deduct_amount = min(remaining_quantity, batch.quantity)
+                batch.quantity -= deduct_amount
+                remaining_quantity -= deduct_amount
+        
+        # Update or create Inventory record for today
+        today = date.today()
+        inventory = db.query(models.Inventory).filter(
+            models.Inventory.product_id == item.product_id,
+            models.Inventory.date == today
+        ).first()
+        
+        if inventory:
+            # Deduct from existing inventory
+            inventory.quantity = max(0, inventory.quantity - item.quantity)
+        else:
+            # Get previous inventory or default to 0
+            prev_inventory = db.query(models.Inventory).filter(
+                models.Inventory.product_id == item.product_id
+            ).order_by(models.Inventory.date.desc()).first()
+            
+            previous_qty = prev_inventory.quantity if prev_inventory else 0
+            new_inventory = models.Inventory(
+                product_id=item.product_id,
+                date=today,
+                quantity=max(0, previous_qty - item.quantity)
+            )
+            db.add(new_inventory)
+    
     db.commit()
     db.refresh(db_order)
     db_order.items = db.query(models.OrderItem).filter_by(order_id=db_order.id).all()
