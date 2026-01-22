@@ -44,6 +44,12 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     return db_user
 
+@router.get("/retailers/", response_model=List[schemas.User])
+def get_retailers(db: Session = Depends(get_db)):
+    """Get all retailers (users with RETAILER role)"""
+    retailers = db.query(models.User).filter(models.User.role == "RETAILER").all()
+    return retailers
+
 
 
 # Products

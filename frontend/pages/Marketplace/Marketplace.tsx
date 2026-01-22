@@ -7,11 +7,10 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { ChevronDown, Leaf, Search, ShoppingBag, Trash2, Bell, BellOff } from "lucide-react";
 import { 
   getCurrentUserId, 
-  isSubscribedToRetailer, 
-  subscribeToRetailer, 
-  unsubscribeFromRetailer 
+  getUserSubscriptions
 } from "@/lib/subscriptions";
 import { toast } from "@/components/ui/toast";
+import { RetailerSubscriptionModal } from "@/components/RetailerSubscriptionModal";
 
 type Product = {
   id: number;
@@ -27,8 +26,12 @@ type ProductBatch = {
   quantity: number;
 };
 
-// Default retailer ID (since schema doesn't have retailer_id, using 1 as default)
-const DEFAULT_RETAILER_ID = 1;
+type Retailer = {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+};
 
 export default function Marketplace() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -39,10 +42,25 @@ export default function Marketplace() {
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isSubscribed, setIsSubscribed] = useState(false);
-  const previousPricesRef = useRef<Map<number, number>>(new Map()); // product_id -> previous lowest price
+  const [subscribedRetailerIds, setSubscribedRetailerIds] = useState<number[]>([]);
+  const [retailers, setRetailers] = useState<Retailer[]>([]);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const previousPricesRef = useRef<Map<number, { price: number; retailerId: number }>>(new Map()); // product_id -> { price, retailerId }
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    // Load retailers
+    async function loadRetailers() {
+      try {
+        const res = await api.get("/api/v1/retailers/");
+        setRetailers(res.data);
+      } catch (err) {
+        console.error("Failed to load retailers:", err);
+      }
+    }
+    loadRetailers();
+  }, []);
 
   useEffect(() => {
     // Check if user is logged in by checking for token in localStorage
@@ -53,9 +71,11 @@ export default function Marketplace() {
       if (token) {
         const userId = getCurrentUserId();
         if (userId) {
-          const subscribed = isSubscribedToRetailer(userId, DEFAULT_RETAILER_ID);
-          setIsSubscribed(subscribed);
+          const subs = getUserSubscriptions(userId);
+          setSubscribedRetailerIds(subs);
         }
+      } else {
+        setSubscribedRetailerIds([]);
       }
     };
     
@@ -76,18 +96,24 @@ export default function Marketplace() {
         const batchRes = await api.get("/api/v1/product-batches/");
         const newBatches = batchRes.data;
         
-        // Detect price drops for subscribed users (after we have both products and batches)
-        if (isLoggedIn && isSubscribed && newProducts.length > 0 && newBatches.length > 0) {
-          detectPriceDrops(newProducts, newBatches);
+        // Detect price changes for subscribed users (after we have both products and batches)
+        if (isLoggedIn && subscribedRetailerIds.length > 0 && newProducts.length > 0 && newBatches.length > 0) {
+          detectPriceChanges(newProducts, newBatches);
         }
         
-        // Update previous prices
+        // Update previous prices with retailer mapping
+        // For MVP: assign batches to retailers using a simple hash (batch_id % num_retailers)
         const productIds = new Set<number>(newBatches.map((b: ProductBatch) => b.product_id));
         productIds.forEach((productId: number) => {
           const productBatches = newBatches.filter((b: ProductBatch) => b.product_id === productId);
-          if (productBatches.length > 0) {
-            const lowestPrice = Math.min(...productBatches.map((b: ProductBatch) => b.base_price));
-            previousPricesRef.current.set(productId, lowestPrice);
+          if (productBatches.length > 0 && retailers.length > 0) {
+            // Find the batch with lowest price and assign it to a retailer
+            const lowestBatch = productBatches.reduce((min, b) => b.base_price < min.base_price ? b : min);
+            const retailerId = retailers[lowestBatch.id % retailers.length]?.id || retailers[0]?.id;
+            previousPricesRef.current.set(productId, {
+              price: lowestBatch.base_price,
+              retailerId: retailerId
+            });
           }
         });
         
@@ -104,11 +130,10 @@ export default function Marketplace() {
     // Poll for price updates every 30 seconds
     const interval = setInterval(fetchProducts, 30000);
     return () => clearInterval(interval);
-  }, [isLoggedIn, isSubscribed]);
+  }, [isLoggedIn, subscribedRetailerIds.length]);
   
-  function detectPriceDrops(productsList: Product[], newBatches: ProductBatch[]) {
-    const userId = getCurrentUserId();
-    if (!userId || !isSubscribed) return;
+  function detectPriceChanges(productsList: Product[], newBatches: ProductBatch[]) {
+    if (subscribedRetailerIds.length === 0 || retailers.length === 0) return;
     
     const processedProducts = new Set<number>();
     
@@ -119,24 +144,45 @@ export default function Marketplace() {
       const productBatches = newBatches.filter((b: ProductBatch) => b.product_id === batch.product_id);
       if (productBatches.length === 0) return;
       
-      const currentLowestPrice = Math.min(...productBatches.map((b: ProductBatch) => b.base_price));
-      const previousPrice = previousPricesRef.current.get(batch.product_id);
+      // Find lowest price batch and determine which retailer it belongs to
+      const lowestBatch = productBatches.reduce((min, b) => b.base_price < min.base_price ? b : min);
+      const retailerId = retailers[lowestBatch.id % retailers.length]?.id || retailers[0]?.id;
+      
+      // Only notify if user is subscribed to this retailer
+      if (!subscribedRetailerIds.includes(retailerId)) return;
+      
+      const currentPrice = lowestBatch.base_price;
+      const previousData = previousPricesRef.current.get(batch.product_id);
       
       const product = productsList.find(p => p.id === batch.product_id);
       if (!product) return;
       
-      // Check for price drops
-      if (previousPrice && currentLowestPrice < previousPrice) {
-        const priceDrop = previousPrice - currentLowestPrice;
-        const dropPercent = ((priceDrop / previousPrice) * 100).toFixed(1);
+      const retailer = retailers.find(r => r.id === retailerId);
+      const retailerName = retailer?.name || "Retailer";
+      
+      // Check for price changes (both increases and decreases)
+      if (previousData && previousData.price !== currentPrice) {
+        const priceChange = currentPrice - previousData.price;
+        const changePercent = Math.abs((priceChange / previousData.price) * 100).toFixed(1);
         
-        if (priceDrop > 0.1) { // Significant price drop (>10 cents)
-          toast({
-            title: "💰 Price Drop Alert!",
-            description: `${product.name} dropped by ${dropPercent}% (₱${priceDrop.toFixed(2)} off)`,
-            type: "success",
-            duration: 8000,
-          });
+        if (Math.abs(priceChange) > 0.1) { // Significant price change (>10 cents)
+          if (priceChange < 0) {
+            // Price dropped
+            toast({
+              title: "💰 Price Drop Alert!",
+              description: `${retailerName} reduced ${product.name} by ${changePercent}% (₱${Math.abs(priceChange).toFixed(2)} off)`,
+              type: "success",
+              duration: 8000,
+            });
+          } else {
+            // Price increased
+            toast({
+              title: "📈 Price Increase",
+              description: `${retailerName} increased ${product.name} by ${changePercent}% (₱${priceChange.toFixed(2)} more)`,
+              type: "info",
+              duration: 8000,
+            });
+          }
         }
       }
       
@@ -155,7 +201,7 @@ export default function Marketplace() {
         
         toast({
           title: "⏰ Near Expiry Deal!",
-          description: `${product.name} expires in ${daysToExpiry} day(s) - Great discount available!`,
+          description: `${retailerName} has ${product.name} expiring in ${daysToExpiry} day(s) - Great discount available!`,
           type: "warning",
           duration: 8000,
         });
@@ -163,33 +209,12 @@ export default function Marketplace() {
     });
   }
   
-  function handleSubscribe() {
+  function handleSubscriptionChange() {
     const userId = getCurrentUserId();
-    if (!userId) {
-      navigate("/login");
-      return;
+    if (userId) {
+      const subs = getUserSubscriptions(userId);
+      setSubscribedRetailerIds(subs);
     }
-    
-    subscribeToRetailer(userId, DEFAULT_RETAILER_ID);
-    setIsSubscribed(true);
-    toast({
-      title: "🔔 Subscribed!",
-      description: "You'll receive alerts for price drops and near-expiry deals",
-      type: "success",
-    });
-  }
-  
-  function handleUnsubscribe() {
-    const userId = getCurrentUserId();
-    if (!userId) return;
-    
-    unsubscribeFromRetailer(userId, DEFAULT_RETAILER_ID);
-    setIsSubscribed(false);
-    toast({
-      title: "Unsubscribed",
-      description: "You won't receive price alerts anymore",
-      type: "info",
-    });
   }
 
   function addToCart(product: Product) {
@@ -240,22 +265,15 @@ export default function Marketplace() {
           <div className="flex items-center gap-3">
             {isLoggedIn && (
               <Button
-                variant={isSubscribed ? "outline" : "ghost"}
+                variant={subscribedRetailerIds.length > 0 ? "outline" : "ghost"}
                 size="sm"
-                onClick={isSubscribed ? handleUnsubscribe : handleSubscribe}
-                title={isSubscribed ? "Unsubscribe from price alerts" : "Subscribe to price alerts"}
+                onClick={() => setShowSubscriptionModal(true)}
+                title="Manage retailer subscriptions"
               >
-                {isSubscribed ? (
-                  <>
-                    <BellOff className="h-4 w-4 mr-1" />
-                    Unsubscribe
-                  </>
-                ) : (
-                  <>
-                    <Bell className="h-4 w-4 mr-1" />
-                    Subscribe
-                  </>
-                )}
+                <Bell className="h-4 w-4 mr-1" />
+                {subscribedRetailerIds.length > 0 
+                  ? `Subscribed (${subscribedRetailerIds.length})` 
+                  : "Subscribe"}
               </Button>
             )}
             {isLoggedIn ? (
@@ -440,6 +458,12 @@ export default function Marketplace() {
           </div>
         )}
       </main>
+      
+      <RetailerSubscriptionModal
+        isOpen={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
+        onSubscriptionChange={handleSubscriptionChange}
+      />
     </div>
   );
 }
