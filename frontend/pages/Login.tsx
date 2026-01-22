@@ -31,6 +31,11 @@ export default function Login() {
 				password: formData.password,
 			});
 
+			// Store token in localStorage
+			if (response.data.access_token) {
+				localStorage.setItem("token", response.data.access_token);
+			}
+
 			// Redirect based on role
 			if (response.data.role === "RETAILER") {
 				navigate("/retailer/dashboard");
