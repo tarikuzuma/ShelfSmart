@@ -1,7 +1,7 @@
 import random
 from datetime import date, timedelta
 from sqlalchemy.orm import Session
-from models import Product, ProductPrice, Delivery, Sale
+from models import Product, ProductBatch, ProductPrice, Inventory, Order, OrderItem
 
 PRODUCT_NAMES = [
     "Tomato", "Potato", "Carrot", "Lettuce", "Cucumber", "Onion", "Pepper", "Broccoli", "Spinach", "Zucchini",
@@ -35,46 +35,117 @@ def next_day_price(prev_price, min_price, max_price):
     return round(new_price, 2)
 
 def seed_data(db: Session, days: int = 7):
-    # 1. Products
+
+    # 1. Products (with categories)
+    categories = [
+        "Vegetable", "Fruit", "Meat", "Dairy", "Grain", "Nut", "Seed", "Seafood", "Bakery"
+    ]
+    def guess_category(name):
+        name = name.lower()
+        if name in ["tomato", "potato", "carrot", "lettuce", "cucumber", "onion", "pepper", "broccoli", "spinach", "zucchini"]:
+            return "Vegetable"
+        if name in ["apple", "banana", "orange", "grape", "strawberry", "blueberry", "peach", "pear", "plum", "cherry"]:
+            return "Fruit"
+        if name in ["chicken breast", "beef steak", "pork chop"]:
+            return "Meat"
+        if name in ["milk", "cheese", "yogurt", "butter", "eggs"]:
+            return "Dairy"
+        if name in ["bread", "rice", "pasta", "oats", "beans", "lentils", "chickpeas", "quinoa", "corn", "barley"]:
+            return "Grain"
+        if name in ["almonds", "walnuts", "peanuts", "cashews", "hazelnuts"]:
+            return "Nut"
+        if name in ["pumpkin seeds", "sunflower seeds", "flaxseed", "chia seed", "sesame seed"]:
+            return "Seed"
+        if name in ["salmon", "tuna", "shrimp"]:
+            return "Seafood"
+        return "Bakery"
+
     products = []
     for name in PRODUCT_NAMES:
-        product = Product(name=name)
+        category = guess_category(name)
+        product = Product(name=name, category=category)
         db.add(product)
         products.append(product)
     db.commit()
-    db.refresh(products[0])
+    for product in products:
+        db.refresh(product)
 
-    # 2. Product Prices (simulate for N days)
+    # 2. Product Batches (simulate 1-3 batches per product, with realistic expiry)
+    batches = []
     today = date.today()
     for product in products:
-        min_price, max_price = PRODUCT_PRICE_RANGES[product.name]
-        price = round(random.uniform(min_price, max_price), 2)
+        for _ in range(random.randint(1, 3)):
+            manufacture_date = today - timedelta(days=random.randint(10, 30))
+            expiry_date = manufacture_date + timedelta(days=random.randint(7, 30))
+            min_price, max_price = PRODUCT_PRICE_RANGES[product.name]
+            base_price = round(random.uniform(min_price, max_price), 2)
+            quantity = random.randint(30, 200)
+            batch = ProductBatch(product_id=product.id, manufacture_date=manufacture_date, expiry_date=expiry_date, base_price=base_price, quantity=quantity)
+            db.add(batch)
+            batches.append(batch)
+    db.commit()
+    for batch in batches:
+        db.refresh(batch)
+
+    # 3. Product Prices (simulate for N days per batch)
+    for batch in batches:
+        price = batch.base_price
         for d in range(days):
             price_date = today - timedelta(days=days-d-1)
-            db.add(ProductPrice(product_id=product.id, date=price_date, price=price))
-            price = next_day_price(price, min_price, max_price)
+            # Discount more as expiry approaches
+            days_to_expiry = (batch.expiry_date - price_date).days
+            min_discount = 0.7 if days_to_expiry < 3 else 0.85
+            discounted_price = next_day_price(price, price * min_discount, price)
+            db.add(ProductPrice(product_batch_id=batch.id, date=price_date, discounted_price=discounted_price))
+            price = discounted_price
     db.commit()
 
-    # 3. Deliveries (simulate 1-2 deliveries per product)
-    for product in products:
-        for _ in range(random.randint(1, 2)):
-            delivery_date = today - timedelta(days=random.randint(1, days))
-            harvest_date = delivery_date - timedelta(days=random.randint(1, 3))
-            quantity = random.randint(50, 200)
-            db.add(Delivery(product_id=product.id, delivery_date=delivery_date, harvest_date=harvest_date, quantity=quantity))
-    db.commit()
-
-    # 4. Sales (simulate 1-3 sales per day per product)
-    for product in products:
-        for d in range(days):
-            sale_date = today - timedelta(days=days-d-1)
+    # 4. Orders and OrderItems (simulate 1-3 orders per day, each with 1-3 items, only from non-expired batches)
+    for d in range(days):
+        order_date = today - timedelta(days=days-d-1)
+        num_orders = random.randint(1, 3)
+        for _ in range(num_orders):
+            order_items = []
+            total_price = 0.0
+            # Only use batches that are not expired on order_date and have quantity left
+            valid_batches = [b for b in batches if b.expiry_date >= order_date and b.quantity > 0]
+            if not valid_batches:
+                continue
             for _ in range(random.randint(1, 3)):
-                quantity = random.randint(1, 10)
-                # Use the price for that day
-                price_obj = db.query(ProductPrice).filter_by(product_id=product.id, date=sale_date).first()
-                price = price_obj.price if price_obj else round(random.uniform(*PRODUCT_PRICE_RANGES[product.name]), 2)
-                total_price = round(quantity * price, 2)
-                db.add(Sale(product_id=product.id, date=sale_date, quantity=quantity, total_price=total_price))
+                batch = random.choice(valid_batches)
+                product = next(p for p in products if p.id == batch.product_id)
+                max_qty = min(10, batch.quantity)
+                if max_qty <= 0:
+                    continue
+                quantity = random.randint(1, max_qty)
+                price_obj = db.query(ProductPrice).filter_by(product_batch_id=batch.id, date=order_date).first()
+                price = price_obj.discounted_price if price_obj else batch.base_price
+                total_price += quantity * price
+                order_items.append((product.id, quantity, price, batch))
+            if not order_items:
+                continue
+            db_order = Order(date=order_date, total_price=round(total_price, 2))
+            db.add(db_order)
+            db.commit()
+            db.refresh(db_order)
+            for pid, qty, price, batch in order_items:
+                db.add(OrderItem(order_id=db_order.id, product_id=pid, quantity=qty, price=price))
+                # Subtract from batch quantity
+                batch.quantity -= qty
+            db.commit()
+
+    # 5. Inventory snapshot per product per day
+    for d in range(days):
+        snap_date = today - timedelta(days=days-d-1)
+        for product in products:
+            # Sum all batch quantities up to this day
+            batch_qty = db.query(ProductBatch).filter(ProductBatch.product_id == product.id, ProductBatch.manufacture_date <= snap_date).with_entities(ProductBatch.quantity).all()
+            total_batch_qty = sum(q[0] for q in batch_qty)
+            # Sum all order items (sales) up to and including this day
+            sold = db.query(OrderItem, Order).join(Order, OrderItem.order_id == Order.id).filter(OrderItem.product_id == product.id, Order.date <= snap_date).with_entities(OrderItem.quantity).all()
+            sold_qty = sum(q[0] for q in sold)
+            inventory_qty = total_batch_qty - sold_qty
+            db.add(Inventory(product_id=product.id, date=snap_date, quantity=inventory_qty))
     db.commit()
 
 if __name__ == "__main__":
