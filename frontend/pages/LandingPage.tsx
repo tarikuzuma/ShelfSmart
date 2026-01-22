@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Logo } from "@/components/Logo";
+import { AuthenticationNavbar } from "@/components/AuthenticationNavbar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -48,30 +48,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
-      <nav className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Logo />
-          <div className="hidden md:flex items-center gap-8">
-            <Link to="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Features
-            </Link>
-            <Link to="#how-it-works" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              How It Works
-            </Link>
-            <Link to="#pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Pricing
-            </Link>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/marketplace">Consumer App</Link>
-            </Button>
-            <Button variant="hero" size="sm" asChild>
-              <Link to="/dashboard">Retailer Dashboard</Link>
-            </Button>
-          </div>
-        </div>
-      </nav>
+      <AuthenticationNavbar />
 
       {/* Hero Section */}
       <section className="relative overflow-hidden">
@@ -269,7 +246,6 @@ export default function LandingPage() {
       <footer className="py-12 border-t border-border">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <Logo />
             <p className="text-sm text-muted-foreground">
               © 2024 FreshPath Market. Fighting food waste with AI.
             </p>
