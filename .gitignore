@@ -9,9 +9,7 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -150,15 +148,13 @@ node_modules/
 jspm_packages/
 
 # Compiled output
-dist/
 dist-ssr/
 *.local
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
@@ -170,16 +166,13 @@ dist-ssr/
 
 # Build output
 build/
+dist/
 out/
 
 # Testing
 /coverage
 
-# Production
-/build
-
 # Misc
-.DS_Store
 .env.local
 .env.development.local
 .env.test.local
@@ -245,20 +238,11 @@ out
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
 
-# yarn v2
-.yarn/cache
-.yarn/unplugged
-.yarn/build-state.yml
-.yarn/install-state.gz
-.pnp.*
-
 # OS
 .DS_Store
 Thumbs.db
 
-# IDE
-.vscode/
-.idea/
+# Additional IDE files
 *.swp
 *.swo
 *~
