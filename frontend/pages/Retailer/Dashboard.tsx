@@ -5,7 +5,7 @@ import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronUp, AlertCircle, Store, ShoppingBag, Package, Clock, TriangleAlert, TrendingUp, CheckCircle, Leaf, BarChart3, Route } from "lucide-react";
-import { ProductSummaryRow } from "@/components/ProductSummaryRow";
+import { ProductSummaryRow } from "../../components/ProductSummaryRow";
 
 function getDiscountedPrice(basePrice, daysToExpiry) {
   if (daysToExpiry >= 30) return basePrice;
@@ -144,23 +144,17 @@ export default function RetailerDashboard() {
                 Retailer Operations Center
               </Badge>
               <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">
-                FreshPath Retailer Dashboard
+                FreshPath Product List
               </h1>
               <p className="mt-2 max-w-2xl text-muted-foreground">
                 Track inventory, batch expiry, and sales in one unified command center for retailers.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
-              <Button variant="hero" size="lg">
+              {/* <Button variant="hero" size="lg">
                 <TrendingUp className="h-4 w-4" />
                 View Weekly Report
-              </Button>
-              <Link to="/retailer/products">
-                <Button variant="heroOutline" size="lg">
-                  <ShoppingBag className="h-4 w-4" />
-                  View Products List
-                </Button>
-              </Link>
+              </Button> */}
             </div>
           </div>
         </div>
@@ -218,10 +212,10 @@ export default function RetailerDashboard() {
               <p className="text-xs text-muted-foreground">Live Catalog</p>
               <h3 className="font-display text-xl font-semibold">What You’re Selling</h3>
             </div>
-            <Button variant="heroOutline" size="sm">
+            {/* <Button variant="heroOutline" size="sm">
               <Package className="h-4 w-4" />
               Manage Inventory
-            </Button>
+            </Button> */}
           </div>
 
           {loading && (
