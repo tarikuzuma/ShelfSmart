@@ -157,6 +157,12 @@ export default function RetailerDashboard() {
                   Add Product
                 </Link>
               </Button>
+              <Button variant="heroOutline" size="lg" asChild>
+                <Link to="/retailer/demand-forecast">
+                  <TrendingUp className="h-4 w-4 mr-2" />
+                  AI Forecast
+                </Link>
+              </Button>
             </div>
           </div>
         </div>

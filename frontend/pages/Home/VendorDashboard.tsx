@@ -158,6 +158,12 @@ export default function VendorDashboard() {
 									Add Product
 								</Link>
 							</Button>
+							<Button variant="heroOutline" size="lg" asChild>
+								<Link to="/retailer/demand-forecast">
+									<TrendingUp className="h-4 w-4 mr-2" />
+									AI Forecast
+								</Link>
+							</Button>
 							<Button variant="hero" size="lg">
 								<TrendingUp className="h-4 w-4" />
 								View Weekly Report
