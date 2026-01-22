@@ -32,7 +32,7 @@ export default function Marketplace() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    async function fetchProducts() {
+    async function fetchInitial() {
       setLoading(true);
       setError("");
       try {
@@ -40,12 +40,11 @@ export default function Marketplace() {
         setProducts(prodRes.data);
         const batchRes = await api.get("/api/v1/product-batches/");
         setBatches(batchRes.data);
-        // Fetch latest price for each batch
+        // Initial price fetch
         const prices: Record<number, number> = {};
         await Promise.all(batchRes.data.map(async (batch: ProductBatch) => {
           const priceRes = await api.get(`/api/v1/product-prices/?product_batch_id=${batch.id}`);
           if (priceRes.data.length > 0) {
-            // Get latest by date
             const latest = priceRes.data.reduce((a, b) => new Date(a.date) > new Date(b.date) ? a : b);
             prices[batch.id] = latest.discounted_price;
           } else {
@@ -59,8 +58,29 @@ export default function Marketplace() {
         setLoading(false);
       }
     }
-    fetchProducts();
+    fetchInitial();
   }, []);
+
+  // Poll only prices
+  useEffect(() => {
+    if (batches.length === 0) return;
+    let intervalId: NodeJS.Timeout;
+    async function pollPrices() {
+      const prices: Record<number, number> = {};
+      await Promise.all(batches.map(async (batch: ProductBatch) => {
+        const priceRes = await api.get(`/api/v1/product-prices/?product_batch_id=${batch.id}`);
+        if (priceRes.data.length > 0) {
+          const latest = priceRes.data.reduce((a, b) => new Date(a.date) > new Date(b.date) ? a : b);
+          prices[batch.id] = latest.discounted_price;
+        } else {
+          prices[batch.id] = batch.base_price;
+        }
+      }));
+      setBatchPrices(prices);
+    }
+    intervalId = setInterval(pollPrices, 10000);
+    return () => clearInterval(intervalId);
+  }, [batches]);
 
   function addToCart(product: Product) {
     setCart((prev) => [...prev, product]);
