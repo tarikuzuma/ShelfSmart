@@ -1,19 +1,30 @@
+from pydantic import BaseModel, EmailStr
+from datetime import date, datetime
+from typing import Optional, List, Literal
 
-from pydantic import BaseModel
-from datetime import date
-from typing import Optional, List
+# ---------- USER ----------
 
 class UserBase(BaseModel):
     name: str
-    shipping_address: str
+    email: EmailStr
+    phone: Optional[str] = None
+    role: Literal["CONSUMER", "RETAILER"]
 
 class UserCreate(UserBase):
-    pass
+    password: str
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
 
 class User(UserBase):
     id: int
+    created_at: datetime
+
     class Config:
         orm_mode = True
+
+# ---------- RETAILER ----------
 
 class RetailerBase(BaseModel):
     name: str
@@ -24,8 +35,11 @@ class RetailerCreate(RetailerBase):
 
 class Retailer(RetailerBase):
     id: int
+
     class Config:
         orm_mode = True
+
+# ---------- PRODUCT ----------
 
 class ProductBase(BaseModel):
     retailer_id: int
@@ -40,8 +54,11 @@ class ProductCreate(ProductBase):
 
 class Product(ProductBase):
     id: int
+
     class Config:
         orm_mode = True
+
+# ---------- PRODUCT PRICE ----------
 
 class ProductPriceBase(BaseModel):
     product_id: int
@@ -52,8 +69,11 @@ class ProductPriceCreate(ProductPriceBase):
 
 class ProductPrice(ProductPriceBase):
     id: int
+
     class Config:
         orm_mode = True
+
+# ---------- ORDER ----------
 
 class OrderItemBase(BaseModel):
     product_id: int
@@ -64,6 +84,7 @@ class OrderItemCreate(OrderItemBase):
 
 class OrderItem(OrderItemBase):
     id: int
+
     class Config:
         orm_mode = True
 
@@ -77,5 +98,6 @@ class OrderCreate(OrderBase):
 class Order(OrderBase):
     id: int
     items: List[OrderItem] = []
+
     class Config:
         orm_mode = True
