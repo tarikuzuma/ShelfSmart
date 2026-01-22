@@ -10,6 +10,7 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/home" element={<div className="p-8">Authetnication - Coming Soon</div>} />
         <Route path="/dashboard" element={<div className="p-8">Dashboard - Coming Soon</div>} />
         <Route path="/marketplace" element={<div className="p-8">Marketplace - Coming Soon</div>} />
       </Routes>

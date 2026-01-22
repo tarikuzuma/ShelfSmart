@@ -5,8 +5,11 @@ from database import SessionLocal
 import models, schemas
 from typing import List, Optional
 from datetime import date
+from passlib.context import CryptContext
 
 router = APIRouter(prefix="/api/v1")
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def get_db():
     db = SessionLocal()
@@ -14,6 +17,34 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# Auth
+@router.post("/auth/signup", response_model=schemas.User)
+def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    existing = db.query(models.User).filter(models.User.email == user.email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    hashed_password = pwd_context.hash(user.password)
+    new_user = models.User(
+        role=user.role,
+        name=user.name,
+        email=user.email,
+        phone=user.phone,
+        password_hash=hashed_password,
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+
+@router.post("/auth/login", response_model=schemas.User)
+def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.email == user.email).first()
+    if not db_user or not pwd_context.verify(user.password, db_user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    return db_user
 
 # Products
 @router.post("/products/", response_model=schemas.Product)
