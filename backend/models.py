@@ -1,43 +1,56 @@
 
+
 from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey
 from sqlalchemy.orm import relationship
 from database import Base
 
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    shipping_address = Column(String, nullable=False)
+    orders = relationship("Order", back_populates="user")
+
+class Retailer(Base):
+    __tablename__ = "retailers"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    location = Column(String, nullable=False)
+    products = relationship("Product", back_populates="retailer")
+
 class Product(Base):
     __tablename__ = "products"
-
     id = Column(Integer, primary_key=True, index=True)
+    retailer_id = Column(Integer, ForeignKey("retailers.id"), nullable=False)
     name = Column(String, index=True, nullable=False)
-    # Relationships
+    base_price = Column(Float, nullable=False)
+    date_added = Column(Date, nullable=False)
+    expiration_date = Column(Date, nullable=True)
+    quantity = Column(Integer, nullable=False)
+    retailer = relationship("Retailer", back_populates="products")
     prices = relationship("ProductPrice", back_populates="product")
-    deliveries = relationship("Delivery", back_populates="product")
-    sales = relationship("Sale", back_populates="product")
+    order_items = relationship("OrderItem", back_populates="product")
 
 class ProductPrice(Base):
     __tablename__ = "product_prices"
-
     id = Column(Integer, primary_key=True, index=True)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
-    date = Column(Date, nullable=False)
-    price = Column(Float, nullable=False)
+    discounted_price = Column(Float, nullable=False)
     product = relationship("Product", back_populates="prices")
 
-class Delivery(Base):
-    __tablename__ = "deliveries"
-
+class Order(Base):
+    __tablename__ = "orders"
     id = Column(Integer, primary_key=True, index=True)
-    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
-    delivery_date = Column(Date, nullable=False)
-    harvest_date = Column(Date, nullable=True)
-    quantity = Column(Integer, nullable=False)
-    product = relationship("Product", back_populates="deliveries")
-
-class Sale(Base):
-    __tablename__ = "sales"
-
-    id = Column(Integer, primary_key=True, index=True)
-    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     date = Column(Date, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user = relationship("User", back_populates="orders")
+    items = relationship("OrderItem", back_populates="order")
+
+class OrderItem(Base):
+    __tablename__ = "order_items"
+    id = Column(Integer, primary_key=True, index=True)
+    order_id = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
     quantity = Column(Integer, nullable=False)
-    total_price = Column(Float, nullable=False)
-    product = relationship("Product", back_populates="sales")
+    order = relationship("Order", back_populates="items")
+    product = relationship("Product", back_populates="order_items")
