@@ -3,7 +3,7 @@ import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Logo } from "@/components/Logo";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { ChevronDown, Leaf, Search, ShoppingBag, Trash2 } from "lucide-react";
 
 type Product = {
@@ -30,12 +30,21 @@ export default function Marketplace() {
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     // Check if user is logged in by checking for token in localStorage
-    const token = localStorage.getItem("token");
-    setIsLoggedIn(!!token);
-  }, []);
+    const checkLoginStatus = () => {
+      const token = localStorage.getItem("token");
+      setIsLoggedIn(!!token);
+    };
+    
+    checkLoginStatus();
+    
+    // Also check when window gains focus (in case user logged in another tab)
+    window.addEventListener("focus", checkLoginStatus);
+    return () => window.removeEventListener("focus", checkLoginStatus);
+  }, [location.pathname]); // Re-check when route changes
 
   useEffect(() => {
     async function fetchProducts() {
@@ -66,6 +75,7 @@ export default function Marketplace() {
 
   function handleSignOut() {
     localStorage.removeItem("token");
+    localStorage.removeItem("user");
     setIsLoggedIn(false);
     navigate("/login");
   }
@@ -94,7 +104,7 @@ export default function Marketplace() {
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <Logo />
           <div className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
-            <Link to="retailer/dashboard" className="hover:text-foreground transition-colors">
+            <Link to="/dashboard" className="hover:text-foreground transition-colors">
               Dashboard
             </Link>
             <span className="text-primary font-semibold">Marketplace</span>

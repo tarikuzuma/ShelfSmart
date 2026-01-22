@@ -31,9 +31,10 @@ export default function Login() {
 				password: formData.password,
 			});
 
-			// Store token in localStorage
-			if (response.data.access_token) {
-				localStorage.setItem("token", response.data.access_token);
+			// Store user data in localStorage to indicate login
+			if (response.data) {
+				localStorage.setItem("token", "authenticated"); // Simple flag for now
+				localStorage.setItem("user", JSON.stringify(response.data));
 			}
 
 			// Redirect based on role
