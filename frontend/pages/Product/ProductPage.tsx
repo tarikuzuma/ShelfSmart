@@ -112,11 +112,15 @@ export default function ProductPage() {
                   {batches
                     .slice()
                     .sort((a, b) => new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime())
-                    .map(batch => (
-                      <option key={batch.id} value={batch.id}>
-                        Batch #{batch.id} (Expires: {new Date(batch.expiry_date).toLocaleDateString()})
-                      </option>
-                    ))}
+                    .map(batch => {
+                      const isExpired = new Date(batch.expiry_date) < new Date();
+                      return (
+                        <option key={batch.id} value={batch.id} disabled={isExpired}>
+                          Batch #{batch.id} (Expires: {new Date(batch.expiry_date).toLocaleDateString()})
+                          {isExpired ? " (Expired)" : ""}
+                        </option>
+                      );
+                    })}
                 </select>
               </div>
               {selectedBatch && (
