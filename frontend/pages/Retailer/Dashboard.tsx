@@ -106,8 +106,13 @@ export default function RetailerDashboard() {
             const isExpanded = expandedProducts.has(product.id);
             const productBatches = getProductBatches(product.id);
             const latestInv = getLatestInventory(product.id);
+
             const totalQty = latestInv ? latestInv.quantity : 0;
-            
+            // Sum of all current batch quantities
+            const sumBatchQty = productBatches.reduce((sum, b) => sum + b.quantity, 0);
+            // Difference (sold/depleted)
+            const soldOrDepleted = totalQty - sumBatchQty;
+
             // Calculate current price (lowest discounted price)
             let currentPrice = null;
             const batchDetails = productBatches.map(batch => {
@@ -115,21 +120,17 @@ export default function RetailerDashboard() {
               const expiry = new Date(batch.expiry_date);
               const daysToExpiry = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
               const discountedPrice = getDiscountedPrice(batch.base_price, daysToExpiry);
-              
               if (currentPrice === null || discountedPrice < currentPrice) {
                 currentPrice = discountedPrice;
               }
-              
               return {
                 ...batch,
                 daysToExpiry,
                 discountedPrice
               };
             });
-            
             // Sort batches by expiry date
             batchDetails.sort((a, b) => new Date(a.expiry_date) - new Date(b.expiry_date));
-            
             const hasExpiringSoon = batchDetails.some(b => b.daysToExpiry <= 7);
 
             return (
@@ -153,10 +154,23 @@ export default function RetailerDashboard() {
                         </div>
                       </div>
 
+
                       <div>
-                        <div className="text-sm text-gray-500">Total Quantity</div>
+                        <div className="text-sm text-gray-500">Total Inventory</div>
                         <div className="font-semibold text-gray-900">{totalQty} units</div>
-                        <div className="text-xs text-gray-500">{batchDetails.length} batch{batchDetails.length !== 1 ? 'es' : ''}</div>
+                        <div className="text-xs text-gray-500">Inventory snapshot (includes all batches minus sales)</div>
+                      </div>
+
+                      <div>
+                        <div className="text-sm text-gray-500">Sum of Batch Quantities</div>
+                        <div className="font-semibold text-gray-900">{sumBatchQty} units</div>
+                        <div className="text-xs text-gray-500">Current sum of all batch quantities</div>
+                      </div>
+
+                      <div>
+                        <div className="text-sm text-gray-500">Sold/Depleted</div>
+                        <div className="font-semibold text-gray-900">{soldOrDepleted >= 0 ? soldOrDepleted : 0} units</div>
+                        <div className="text-xs text-gray-500">Inventory snapshot - sum of batch quantities</div>
                       </div>
 
                       <div className="flex items-center gap-2">
