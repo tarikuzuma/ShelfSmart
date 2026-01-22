@@ -34,6 +34,7 @@ export default function RetailerDashboard() {
   const [products, setProducts] = useState([]);
   const [batches, setBatches] = useState([]);
   const [inventories, setInventories] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [expandedProducts, setExpandedProducts] = useState(new Set());
@@ -43,14 +44,16 @@ export default function RetailerDashboard() {
       setLoading(true);
       setError("");
       try {
-        const [prodRes, batchRes, invRes] = await Promise.all([
+        const [prodRes, batchRes, invRes, orderRes] = await Promise.all([
           api.get(`/api/v1/products/`),
           api.get(`/api/v1/product-batches/`),
           api.get(`/api/v1/inventories/`),
+          api.get(`/api/v1/orders/`),
         ]);
         setProducts(prodRes.data);
         setBatches(batchRes.data);
         setInventories(invRes.data);
+        setOrders(orderRes.data);
       } catch (err) {
         setError("Failed to load dashboard data");
       } finally {
@@ -110,8 +113,11 @@ export default function RetailerDashboard() {
             const totalQty = latestInv ? latestInv.quantity : 0;
             // Sum of all current batch quantities
             const sumBatchQty = productBatches.reduce((sum, b) => sum + b.quantity, 0);
-            // Difference (sold/depleted)
-            const soldOrDepleted = totalQty - sumBatchQty;
+            // Calculate total sold units for this product
+            const totalSold = orders
+              .flatMap(order => order.items)
+              .filter(item => item.product_id === product.id)
+              .reduce((sum, item) => sum + item.quantity, 0);
 
             // Calculate current price (lowest discounted price)
             let currentPrice = null;
@@ -169,8 +175,8 @@ export default function RetailerDashboard() {
 
                       <div>
                         <div className="text-sm text-gray-500">Sold/Depleted</div>
-                        <div className="font-semibold text-gray-900">{soldOrDepleted >= 0 ? soldOrDepleted : 0} units</div>
-                        <div className="text-xs text-gray-500">Inventory snapshot - sum of batch quantities</div>
+                        <div className="font-semibold text-gray-900">{totalSold} units</div>
+                        <div className="text-xs text-gray-500">Total units sold (from orders)</div>
                       </div>
 
                       <div className="flex items-center gap-2">

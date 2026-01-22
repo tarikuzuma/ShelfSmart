@@ -1,0 +1,337 @@
+import { Link } from "react-router-dom";
+import { Logo } from "@/components/Logo";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+
+import { BarChart3, Bell, CheckCircle, Clock, Leaf, Package, RefreshCw, Route, ShoppingBag, Store, TrendingUp, TriangleAlert } from "lucide-react";
+import { SoldVsSpoilage } from "@/components/vendordashboard/SoldVsSpoilage";
+import { InventoryByCategory } from "@/components/vendordashboard/InventoryByCategory";
+// import { ProductHighlights } from "@/components/vendordashboard/ProductHighlights";
+import { AlertsList } from "@/components/vendordashboard/AlertsList";
+import { SalesPerformanceChart } from "@/components/vendordashboard/SalesPerformanceChart";
+import { ProductInventoryTable } from "@/components/vendordashboard/ProductInventoryTable";
+
+type SalesPoint = { label: string; value: number };
+
+const salesData: SalesPoint[] = [
+	{ label: "Mon", value: 120 },
+	{ label: "Tue", value: 180 },
+	{ label: "Wed", value: 150 },
+	{ label: "Thu", value: 220 },
+	{ label: "Fri", value: 280 },
+	{ label: "Sat", value: 260 },
+	{ label: "Sun", value: 320 },
+];
+
+const inventoryByCategory = [
+	{ label: "Produce", value: 420 },
+	{ label: "Meat", value: 180 },
+	{ label: "Dairy", value: 260 },
+	{ label: "Bakery", value: 140 },
+	{ label: "Ready-to-eat", value: 120 },
+	{ label: "Snacks", value: 200 },
+];
+
+
+
+const alerts = [
+	{
+		name: "Strawberry Pack 250g",
+		action: "Promote 25% off",
+		status: "High priority",
+		time: "Expires in 10 hours",
+	},
+	{
+		name: "Chicken Breast 1kg",
+		action: "Auto-discount 20%",
+		status: "Medium priority",
+		time: "Expires in 1 day",
+	},
+	{
+		name: "Greek Yogurt 500ml",
+		action: "Bundle with granola",
+		status: "Opportunity",
+		time: "Expires in 2 days",
+	},
+];
+
+
+
+export default function VendorDashboard() {
+	// TODO: Replace static data with API-driven data where possible
+	const sold = 820; // Replace with real API data
+	const spoilage = 120; // Replace with real API data
+
+	return (
+		<div className="min-h-screen bg-background">
+			<nav className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
+				<div className="container mx-auto flex h-16 items-center justify-between px-4">
+					<Logo />
+					<div className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
+						<Link to="/marketplace" className="hover:text-foreground transition-colors">
+							Marketplace
+						</Link>
+						<Link to="/dashboard" className="hover:text-foreground transition-colors">
+							Vendor Dashboard
+						</Link>
+						<Link to="#insights" className="hover:text-foreground transition-colors">
+							Insights
+						</Link>
+					</div>
+					<div className="flex items-center gap-3">
+						<Button variant="ghost" size="sm">
+							<Bell className="h-4 w-4" />
+							Alerts
+						</Button>
+						<Button variant="hero" size="sm">
+							<RefreshCw className="h-4 w-4" />
+							Sync Data
+						</Button>
+					</div>
+				</div>
+			</nav>
+
+			<header className="relative overflow-hidden">
+				<div className="absolute inset-0 bg-linear-to-br from-primary/5 via-background to-warning/5" />
+				<div className="container relative mx-auto px-4 py-10 md:py-14">
+					<div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+						<div>
+							<Badge variant="sustainability" className="mb-3 animate-fade-in">
+								<Leaf className="h-3 w-3 mr-1" />
+								AI Operations Control Center
+							</Badge>
+							<h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">
+								FreshPath Market Vendor Dashboard
+							</h1>
+							<p className="mt-2 max-w-2xl text-muted-foreground">
+								Monitor real-time perishable performance, dynamic pricing, and sustainability outcomes
+								in one unified retail command center.
+							</p>
+						</div>
+						<div className="flex flex-wrap gap-3">
+							<Button variant="hero" size="lg">
+								<TrendingUp className="h-4 w-4" />
+								View Weekly Report
+							</Button>
+							<Button variant="heroOutline" size="lg">
+								<ShoppingBag className="h-4 w-4" />
+								Launch Promotions
+							</Button>
+						</div>
+					</div>
+				</div>
+			</header>
+
+			<main className="container mx-auto px-4 pb-16">
+				<section className="grid gap-6 lg:grid-cols-[1.2fr_1fr] -mt-8">
+					<div className="grid gap-6">
+						{/* Metrics and AI Pricing Alerts */}
+						{/* TODO: Replace with API-driven metrics */}
+						<div className="grid gap-4 md:grid-cols-3">
+							<div className="rounded-2xl border border-border/60 bg-card p-5 hover-lift animate-fade-in-up">
+								<div className="flex items-center gap-3">
+									<div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+										<Store className="h-5 w-5 text-primary" />
+									</div>
+									<div>
+										<p className="text-xs text-muted-foreground">Retailer</p>
+										<p className="font-display font-semibold text-foreground">FreshPath Supermarket</p>
+									</div>
+								</div>
+								<div className="mt-4 text-sm text-muted-foreground">
+									<div>Taguig City, Metro Manila</div>
+									<div>Type: Premium Grocery Chain</div>
+								</div>
+							</div>
+							<div className="rounded-2xl border border-border/60 bg-card p-5 hover-lift animate-fade-in-up" style={{ animationDelay: "0.05s" }}>
+								<div className="flex items-center gap-3">
+									<div className="h-10 w-10 rounded-xl bg-warning/10 flex items-center justify-center">
+										<TriangleAlert className="h-5 w-5 text-warning" />
+									</div>
+									<div>
+										<p className="text-xs text-muted-foreground">Urgent Alerts</p>
+										<p className="font-display text-2xl font-bold text-foreground">12</p>
+									</div>
+								</div>
+								<p className="mt-3 text-sm text-muted-foreground">
+									4 items require immediate markdowns today.
+								</p>
+							</div>
+							<div className="rounded-2xl border border-border/60 bg-card p-5 hover-lift animate-fade-in-up" style={{ animationDelay: "0.1s" }}>
+								<div className="flex items-center gap-3">
+									<div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+										<CheckCircle className="h-5 w-5 text-primary" />
+									</div>
+									<div>
+										<p className="text-xs text-muted-foreground">AI Compliance</p>
+										<p className="font-display text-2xl font-bold text-foreground">96%</p>
+									</div>
+								</div>
+								<p className="mt-3 text-sm text-muted-foreground">
+									Discount automation is active and stable.
+								</p>
+							</div>
+						</div>
+
+						{/* Metrics Cards (static for now) */}
+						<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+							{[
+								{ label: "Total Items", value: "1,240", icon: Package, tone: "primary" },
+								{ label: "Near-Expiry", value: "180", icon: Clock, tone: "warning" },
+								{ label: "Urgent", value: "42", icon: TriangleAlert, tone: "destructive" },
+								{ label: "Sold Today", value: "680", icon: ShoppingBag, tone: "primary" },
+							].map((metric, index) => (
+								<div
+									key={metric.label}
+									className="rounded-2xl border border-border/60 bg-card p-4 hover-lift animate-fade-in-up"
+									style={{ animationDelay: `${0.1 + index * 0.05}s` }}
+								>
+									<div className="flex items-center justify-between">
+										<p className="text-xs text-muted-foreground">{metric.label}</p>
+										<div
+											className={`h-9 w-9 rounded-xl flex items-center justify-center ${
+												metric.tone === "warning"
+													? "bg-warning/10"
+													: metric.tone === "destructive"
+													? "bg-destructive/10"
+													: "bg-primary/10"
+											}`}
+										>
+											<metric.icon
+												className={`h-4 w-4 ${
+													metric.tone === "warning"
+														? "text-warning"
+														: metric.tone === "destructive"
+														? "text-destructive"
+														: "text-primary"
+												}`}
+											/>
+										</div>
+									</div>
+									<p className="mt-2 font-display text-2xl font-bold text-foreground">{metric.value}</p>
+									<p className="text-xs text-muted-foreground">Updated 5 mins ago</p>
+								</div>
+							))}
+						</div>
+					</div>
+
+					{/* AI Pricing Alerts (modular component) */}
+					<div className="rounded-3xl border border-border/60 bg-card p-6 shadow-sm hover-lift">
+						<div className="flex items-center justify-between">
+							<div>
+								<p className="text-xs text-muted-foreground">AI Pricing Signals</p>
+								<h3 className="font-display text-lg font-semibold">Dynamic Discount Queue</h3>
+							</div>
+							<Badge variant="secondary">12 Active</Badge>
+						</div>
+						<AlertsList alerts={alerts} />
+						<Button variant="hero" className="mt-6 w-full">
+							Approve AI Suggestions
+						</Button>
+					</div>
+				</section>
+
+				<section id="insights" className="mt-12 grid gap-6 lg:grid-cols-3">
+					<div className="lg:col-span-2">
+						<SalesPerformanceChart data={salesData} />
+					</div>
+					<div>
+						<SoldVsSpoilage sold={sold} spoilage={spoilage} />
+					</div>
+				</section>
+
+				<section className="mt-8 grid gap-6 lg:grid-cols-2">
+					<InventoryByCategory data={inventoryByCategory} />
+					<div className="rounded-3xl border border-border/60 bg-card p-6 hover-lift">
+						<div className="flex items-center justify-between">
+							<div>
+								<p className="text-xs text-muted-foreground">Forecast Alerts</p>
+								<h3 className="font-display text-lg font-semibold">Inventory Risk Radar</h3>
+							</div>
+							<Badge variant="secondary">Next 14 Days</Badge>
+						</div>
+						<div className="mt-6 space-y-4">
+							{[
+								{ label: "Leafy greens", note: "Shortage likely in 3 days", level: "warning" },
+								{ label: "Prepared meals", note: "Overstock risk in 4 days", level: "primary" },
+								{ label: "Dairy", note: "Stable supply, demand rising", level: "primary" },
+							].map((item) => (
+								<div key={item.label} className="rounded-2xl border border-border/60 bg-background p-4">
+									<div className="flex items-center justify-between">
+										<p className="font-semibold text-foreground text-sm">{item.label}</p>
+										<Badge variant={item.level === "warning" ? "destructive" : "secondary"}>
+											{item.level === "warning" ? "Risk" : "Stable"}
+										</Badge>
+									</div>
+									<p className="mt-2 text-xs text-muted-foreground">{item.note}</p>
+								</div>
+							))}
+						</div>
+					</div>
+				</section>
+
+				<section className="mt-10">
+					<div className="flex items-center justify-between mb-4">
+						<div>
+							<p className="text-xs text-muted-foreground">Live Catalog</p>
+							<h3 className="font-display text-xl font-semibold">What You’re Selling</h3>
+						</div>
+						<Button variant="heroOutline" size="sm">
+							<Package className="h-4 w-4" />
+							Manage Inventory
+						</Button>
+					</div>
+					{/* Replace static highlights with real inventory table */}
+					<ProductInventoryTable />
+				</section>
+
+				<section className="mt-12 grid gap-6 lg:grid-cols-3">
+					<div className="rounded-3xl border border-border/60 bg-card p-6 hover-lift">
+						<div className="flex items-center gap-3">
+							<div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+								<Leaf className="h-5 w-5 text-primary" />
+							</div>
+							<div>
+								<p className="text-xs text-muted-foreground">Sustainability Impact</p>
+								<p className="font-display text-2xl font-bold text-foreground">2,180 kg</p>
+							</div>
+						</div>
+						<p className="mt-3 text-sm text-muted-foreground">
+							Food waste saved this month, equivalent to 3,200 meals.
+						</p>
+					</div>
+
+					<div className="rounded-3xl border border-border/60 bg-card p-6 hover-lift">
+						<div className="flex items-center gap-3">
+							<div className="h-10 w-10 rounded-xl bg-warning/10 flex items-center justify-center">
+								<Route className="h-5 w-5 text-warning" />
+							</div>
+							<div>
+								<p className="text-xs text-muted-foreground">Logistics Insight</p>
+								<p className="font-display text-2xl font-bold text-foreground">14 min</p>
+							</div>
+						</div>
+						<p className="mt-3 text-sm text-muted-foreground">
+							Shortest delivery route suggests North Hub → Market A → Market B.
+						</p>
+					</div>
+
+					<div className="rounded-3xl border border-border/60 bg-card p-6 hover-lift">
+						<div className="flex items-center gap-3">
+							<div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+								<BarChart3 className="h-5 w-5 text-primary" />
+							</div>
+							<div>
+								<p className="text-xs text-muted-foreground">Pending Deliveries</p>
+								<p className="font-display text-2xl font-bold text-foreground">8</p>
+							</div>
+						</div>
+						<p className="mt-3 text-sm text-muted-foreground">
+							3 inbound shipments have AI-guided freshness priority.
+						</p>
+					</div>
+				</section>
+			</main>
+		</div>
+	);
+}
