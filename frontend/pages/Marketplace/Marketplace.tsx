@@ -33,13 +33,22 @@ type Retailer = {
   role: string;
 };
 
+type CartItem = {
+  product_id: number;
+  product_name: string;
+  category: string;
+  quantity: number;
+  price: number;
+};
+
 export default function Marketplace() {
   const [products, setProducts] = useState<Product[]>([]);
   const [batches, setBatches] = useState<ProductBatch[]>([]);
   const [batchPrices, setBatchPrices] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [cart, setCart] = useState<Product[]>([]);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [checkingOut, setCheckingOut] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -231,18 +240,132 @@ useEffect(() => {
       navigate("/login");
       return;
     }
-    setCart((prev) => [...prev, product]);
+    
+    // Find the lowest price batch for this product
+    const productBatches = batches.filter(b => b.product_id === product.id);
+    if (productBatches.length === 0) {
+      toast({
+        title: "Error",
+        description: "No batches available for this product",
+        type: "error",
+      });
+      return;
+    }
+    
+    const lowestBatch = productBatches.reduce((min, b) => b.base_price < min.base_price ? b : min);
+    const price = lowestBatch.base_price;
+    
+    // Check if product already in cart
+    const existingItem = cart.find(item => item.product_id === product.id);
+    if (existingItem) {
+      // Increase quantity
+      setCart((prev) =>
+        prev.map((item) =>
+          item.product_id === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        )
+      );
+    } else {
+      // Add new item
+      setCart((prev) => [
+        ...prev,
+        {
+          product_id: product.id,
+          product_name: product.name,
+          category: product.category,
+          quantity: 1,
+          price: price,
+        },
+      ]);
+    }
+    
+    toast({
+      title: "Added to cart",
+      description: `${product.name} added to cart`,
+      type: "success",
+      duration: 2000,
+    });
   }
 
   function handleSignOut() {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     setIsLoggedIn(false);
+    setCart([]);
     navigate("/login");
   }
 
   function removeFromCart(productId: number) {
-    setCart((prev) => prev.filter((p) => p.id !== productId));
+    setCart((prev) => prev.filter((item) => item.product_id !== productId));
+  }
+  
+  function updateCartQuantity(productId: number, newQuantity: number) {
+    if (newQuantity <= 0) {
+      removeFromCart(productId);
+      return;
+    }
+    setCart((prev) =>
+      prev.map((item) =>
+        item.product_id === productId
+          ? { ...item, quantity: newQuantity }
+          : item
+      )
+    );
+  }
+  
+  async function handleCheckout() {
+    if (cart.length === 0) {
+      toast({
+        title: "Cart is empty",
+        description: "Add items to cart before checkout",
+        type: "warning",
+      });
+      return;
+    }
+    
+    setCheckingOut(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const totalPrice = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      
+      const orderData = {
+        date: today,
+        total_price: totalPrice,
+        items: cart.map(item => ({
+          product_id: item.product_id,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+      };
+      
+      const response = await api.post("/api/v1/orders/", orderData);
+      
+      toast({
+        title: "✅ Order Placed!",
+        description: `Order #${response.data.id} placed successfully. Total: ₱${totalPrice.toFixed(2)}`,
+        type: "success",
+        duration: 5000,
+      });
+      
+      // Clear cart
+      setCart([]);
+      
+      // Refresh products and batches to show updated inventory
+      const prodRes = await api.get("/api/v1/products/");
+      const batchRes = await api.get("/api/v1/product-batches/");
+      setProducts(prodRes.data);
+      setBatches(batchRes.data);
+      
+    } catch (err: any) {
+      toast({
+        title: "Checkout Failed",
+        description: err.response?.data?.detail || "Failed to place order. Please try again.",
+        type: "error",
+      });
+    } finally {
+      setCheckingOut(false);
+    }
   }
 
   const categories = useMemo(() => {
@@ -448,7 +571,9 @@ useEffect(() => {
               <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <h2 className="font-display text-lg font-semibold">Cart</h2>
-                  <Badge variant="secondary">{cart.length} items</Badge>
+                  <Badge variant="secondary">
+                    {cart.reduce((sum, item) => sum + item.quantity, 0)} items
+                  </Badge>
                 </div>
                 {cart.length === 0 ? (
                   <p className="mt-4 text-sm text-muted-foreground">
@@ -458,27 +583,82 @@ useEffect(() => {
                   <div className="mt-4 space-y-3">
                     {cart.map((item) => (
                       <div
-                        key={item.id}
-                        className="flex items-center justify-between rounded-xl border border-border/60 bg-background px-3 py-2"
+                        key={item.product_id}
+                        className="rounded-xl border border-border/60 bg-background px-3 py-2"
                       >
-                        <div>
-                          <p className="text-sm font-semibold text-foreground">{item.name}</p>
-                          <p className="text-xs text-muted-foreground">{item.category}</p>
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold text-foreground">{item.product_name}</p>
+                            <p className="text-xs text-muted-foreground">{item.category}</p>
+                            <p className="text-xs text-primary mt-1">₱{item.price.toFixed(2)} each</p>
+                          </div>
+                          <Button 
+                            size="icon" 
+                            variant="ghost" 
+                            className="h-6 w-6"
+                            onClick={() => removeFromCart(item.product_id)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
                         </div>
-                        <Button size="icon" variant="ghost" onClick={() => removeFromCart(item.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/40">
+                          <span className="text-xs text-muted-foreground">Quantity</span>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-6 w-6"
+                              onClick={() => updateCartQuantity(item.product_id, item.quantity - 1)}
+                            >
+                              <span className="text-xs">-</span>
+                            </Button>
+                            <span className="text-sm font-semibold w-8 text-center">{item.quantity}</span>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-6 w-6"
+                              onClick={() => updateCartQuantity(item.product_id, item.quantity + 1)}
+                            >
+                              <span className="text-xs">+</span>
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="mt-2 text-right">
+                          <span className="text-xs text-muted-foreground">Subtotal: </span>
+                          <span className="text-sm font-semibold text-foreground">
+                            ₱{(item.price * item.quantity).toFixed(2)}
+                          </span>
+                        </div>
                       </div>
                     ))}
                   </div>
                 )}
-                <div className="mt-6 flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Total items</span>
-                  <span className="font-semibold text-foreground">{cart.length}</span>
-                </div>
-                <Button className="mt-4 w-full" disabled>
-                  Checkout (Demo Only)
-                </Button>
+                {cart.length > 0 && (
+                  <>
+                    <div className="mt-6 space-y-2 pt-4 border-t border-border/60">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Total items</span>
+                        <span className="font-semibold text-foreground">
+                          {cart.reduce((sum, item) => sum + item.quantity, 0)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-base">
+                        <span className="font-semibold text-foreground">Total</span>
+                        <span className="font-bold text-primary text-lg">
+                          ₱{cart.reduce((sum, item) => sum + item.price * item.quantity, 0).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                    <Button 
+                      className="mt-4 w-full" 
+                      variant="hero"
+                      onClick={handleCheckout}
+                      disabled={checkingOut || !isLoggedIn}
+                    >
+                      {checkingOut ? "Processing..." : "Checkout"}
+                    </Button>
+                  </>
+                )}
               </div>
             </aside>
           </div>
