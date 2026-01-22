@@ -171,6 +171,7 @@ export default function Marketplace() {
                         <div className="absolute left-3 top-3 h-3 w-3 rounded-full bg-destructive" />
                         <Badge className="absolute right-3 top-3" variant="secondary">
                           Fresh
+                          {/* TO DO: set this dynamically, maybe like if its only a month from produce being shipped */}
                         </Badge>
                         <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
                           <Leaf className="h-8 w-8 text-primary" />
@@ -200,7 +201,7 @@ export default function Marketplace() {
                           <Button variant="outline" onClick={() => navigate(`/product/${product.id}`)}>Details</Button>
                           <Button onClick={() => addToCart(product)}>
                             <ShoppingBag className="h-4 w-4" />
-                            Add
+                            Quick Add
                           </Button>
                         </div>
                       </div>
