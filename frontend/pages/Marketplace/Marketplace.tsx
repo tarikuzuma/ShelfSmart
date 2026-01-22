@@ -94,7 +94,7 @@ export default function Marketplace() {
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <Logo />
           <div className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
-            <Link to="/dashboard" className="hover:text-foreground transition-colors">
+            <Link to="retailer/dashboard" className="hover:text-foreground transition-colors">
               Dashboard
             </Link>
             <span className="text-primary font-semibold">Marketplace</span>

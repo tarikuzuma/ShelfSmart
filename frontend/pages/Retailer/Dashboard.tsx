@@ -113,7 +113,7 @@ export default function RetailerDashboard() {
             <Link to="/marketplace" className="hover:text-foreground transition-colors">
               Marketplace
             </Link>
-            <Link to="/dashboard" className="hover:text-foreground transition-colors">
+            <Link to="retailer/dashboard" className="hover:text-foreground transition-colors">
               Retailer Dashboard
             </Link>
             <Link to="#insights" className="hover:text-foreground transition-colors">
