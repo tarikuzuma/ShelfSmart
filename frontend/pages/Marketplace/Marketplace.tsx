@@ -3,7 +3,7 @@ import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Logo } from "@/components/Logo";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ChevronDown, Leaf, Search, ShoppingBag, Trash2 } from "lucide-react";
 
 type Product = {
@@ -12,21 +12,33 @@ type Product = {
   category: string;
 };
 
+type ProductBatch = {
+  id: number;
+  product_id: number;
+  base_price: number;
+  expiry_date: string;
+  quantity: number;
+};
+
 export default function Marketplace() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [batches, setBatches] = useState<ProductBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cart, setCart] = useState<Product[]>([]);
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
+  const navigate = useNavigate();
 
   useEffect(() => {
     async function fetchProducts() {
       setLoading(true);
       setError("");
       try {
-        const res = await api.get("/api/v1/products/");
-        setProducts(res.data);
+        const prodRes = await api.get("/api/v1/products/");
+        setProducts(prodRes.data);
+        const batchRes = await api.get("/api/v1/product-batches/");
+        setBatches(batchRes.data);
       } catch (err) {
         setError("Failed to load products.");
       } finally {
@@ -145,40 +157,56 @@ export default function Marketplace() {
                 ))}
               </div>
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
-                {filteredProducts.map((product) => (
-                  <div
-                    key={product.id}
-                    className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm hover-lift"
-                  >
-                    <div className="relative h-40 bg-muted/40 flex items-center justify-center">
-                      <div className="absolute left-3 top-3 h-3 w-3 rounded-full bg-destructive" />
-                      <Badge className="absolute right-3 top-3" variant="secondary">
-                        Fresh
-                      </Badge>
-                      <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Leaf className="h-8 w-8 text-primary" />
+                {filteredProducts.map((product) => {
+                  // Find all batches for this product
+                  const productBatches = batches.filter(b => b.product_id === product.id);
+                  // Find lowest price batch
+                  const lowestBatch = productBatches.reduce((min, b) => min === null || b.base_price < min.base_price ? b : min, null);
+                  return (
+                    <div
+                      key={product.id}
+                      className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm hover-lift"
+                    >
+                      <div className="relative h-40 bg-muted/40 flex items-center justify-center">
+                        <div className="absolute left-3 top-3 h-3 w-3 rounded-full bg-destructive" />
+                        <Badge className="absolute right-3 top-3" variant="secondary">
+                          Fresh
+                        </Badge>
+                        <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+                          <Leaf className="h-8 w-8 text-primary" />
+                        </div>
+                      </div>
+                      <div className="p-5">
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                          {product.category}
+                        </p>
+                        <h2 className="font-display text-lg font-semibold text-foreground">
+                          {product.name}
+                        </h2>
+                        {lowestBatch && (
+                          <p className="mt-2 text-sm text-primary">
+                            <span
+                              className="underline cursor-pointer"
+                              onClick={() => navigate(`/product/${product.id}`)}
+                            >
+                              ₱{lowestBatch.base_price.toFixed(2)}
+                            </span>
+                            {productBatches.length > 1 && (
+                              <span className="ml-2 text-xs text-muted-foreground">({productBatches.length} batches)</span>
+                            )}
+                          </p>
+                        )}
+                        <div className="mt-4 grid grid-cols-2 gap-3">
+                          <Button variant="outline" onClick={() => navigate(`/product/${product.id}`)}>Details</Button>
+                          <Button onClick={() => addToCart(product)}>
+                            <ShoppingBag className="h-4 w-4" />
+                            Add
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                    <div className="p-5">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                        {product.category}
-                      </p>
-                      <h2 className="font-display text-lg font-semibold text-foreground">
-                        {product.name}
-                      </h2>
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        AI freshness status available at checkout.
-                      </p>
-                      <div className="mt-4 grid grid-cols-2 gap-3">
-                        <Button variant="outline">Details</Button>
-                        <Button onClick={() => addToCart(product)}>
-                          <ShoppingBag className="h-4 w-4" />
-                          Add
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
 

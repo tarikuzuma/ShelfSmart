@@ -26,6 +26,8 @@ def create_product(product: schemas.ProductCreate, db: Session = Depends(get_db)
     db.refresh(db_product)
     return db_product
 
+
+# List products
 @router.get("/products/", response_model=List[schemas.Product])
 def read_products(name: Optional[str] = Query(None), category: Optional[str] = Query(None), db: Session = Depends(get_db)):
     query = db.query(models.Product)
@@ -34,6 +36,22 @@ def read_products(name: Optional[str] = Query(None), category: Optional[str] = Q
     if category:
         query = query.filter(models.Product.category == category)
     return query.all()
+
+# Get product by id
+@router.get("/products/{id}", response_model=schemas.Product)
+def get_product(id: int, db: Session = Depends(get_db)):
+    product = db.query(models.Product).filter(models.Product.id == id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
+
+# Get cheapest batch for product
+@router.get("/products/{id}/cheapest-batch", response_model=schemas.ProductBatch)
+def get_cheapest_batch(id: int, db: Session = Depends(get_db)):
+    batch = db.query(models.ProductBatch).filter(models.ProductBatch.product_id == id).order_by(models.ProductBatch.base_price.asc()).first()
+    if not batch:
+        raise HTTPException(status_code=404, detail="No batch found for product")
+    return batch
 
 
 # Product Batches
@@ -45,12 +63,22 @@ def create_product_batch(batch: schemas.ProductBatchCreate, db: Session = Depend
     db.refresh(db_batch)
     return db_batch
 
+
+# List product batches
 @router.get("/product-batches/", response_model=List[schemas.ProductBatch])
 def read_product_batches(product_id: Optional[int] = Query(None), db: Session = Depends(get_db)):
     query = db.query(models.ProductBatch)
     if product_id:
         query = query.filter(models.ProductBatch.product_id == product_id)
     return query.all()
+
+# Get product batch by id
+@router.get("/product-batches/{id}", response_model=schemas.ProductBatch)
+def get_product_batch(id: int, db: Session = Depends(get_db)):
+    batch = db.query(models.ProductBatch).filter(models.ProductBatch.id == id).first()
+    if not batch:
+        raise HTTPException(status_code=404, detail="Product batch not found")
+    return batch
 
 # Product Prices (by batch)
 @router.post("/product-prices/", response_model=schemas.ProductPrice)
