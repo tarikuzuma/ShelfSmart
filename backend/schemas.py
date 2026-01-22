@@ -1,6 +1,8 @@
 from pydantic import BaseModel, EmailStr
 from datetime import date, datetime
-from typing import Optional, Literal
+from typing import Optional, List, Literal
+
+# ---------- USER ----------
 
 class UserBase(BaseModel):
     name: str
@@ -16,60 +18,86 @@ class UserLogin(BaseModel):
     password: str
 
 class User(UserBase):
-    user_id: int
+    id: int
     created_at: datetime
 
     class Config:
         orm_mode = True
 
-class ProductBase(BaseModel):
+# ---------- RETAILER ----------
+
+class RetailerBase(BaseModel):
     name: str
+    location: str
+
+class RetailerCreate(RetailerBase):
+    pass
+
+class Retailer(RetailerBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+# ---------- PRODUCT ----------
+
+class ProductBase(BaseModel):
+    retailer_id: int
+    name: str
+    base_price: float
+    date_added: date
+    expiration_date: Optional[date]
+    quantity: int
 
 class ProductCreate(ProductBase):
     pass
 
 class Product(ProductBase):
     id: int
+
     class Config:
         orm_mode = True
 
+# ---------- PRODUCT PRICE ----------
+
 class ProductPriceBase(BaseModel):
     product_id: int
-    date: date
-    price: float
+    discounted_price: float
 
 class ProductPriceCreate(ProductPriceBase):
     pass
 
 class ProductPrice(ProductPriceBase):
     id: int
+
     class Config:
         orm_mode = True
 
-class DeliveryBase(BaseModel):
+# ---------- ORDER ----------
+
+class OrderItemBase(BaseModel):
     product_id: int
-    delivery_date: date
-    harvest_date: Optional[date]
     quantity: int
 
-class DeliveryCreate(DeliveryBase):
+class OrderItemCreate(OrderItemBase):
     pass
 
-class Delivery(DeliveryBase):
+class OrderItem(OrderItemBase):
     id: int
+
     class Config:
         orm_mode = True
 
-class SaleBase(BaseModel):
-    product_id: int
+class OrderBase(BaseModel):
     date: date
-    quantity: int
-    total_price: float
+    user_id: int
 
-class SaleCreate(SaleBase):
-    pass
+class OrderCreate(OrderBase):
+    items: List[OrderItemCreate]
 
-class Sale(SaleBase):
+class Order(OrderBase):
     id: int
+    items: List[OrderItem] = []
+
     class Config:
         orm_mode = True
