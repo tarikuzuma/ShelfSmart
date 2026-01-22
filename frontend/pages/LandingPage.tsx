@@ -64,10 +64,10 @@ export default function LandingPage() {
           </div>
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" asChild>
-              <Link to="/marketplace">Consumer App</Link>
+              <Link to="/login">Sign In</Link>
             </Button>
             <Button variant="hero" size="sm" asChild>
-              <Link to="/dashboard">Retailer Dashboard</Link>
+              <Link to="/signup">Sign Up</Link>
             </Button>
           </div>
         </div>
