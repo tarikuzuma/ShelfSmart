@@ -88,10 +88,12 @@ class Order(OrderBase):
     class Config:
         orm_mode = True
 
+
+# ProductPrice (linked to batch)
 class ProductPriceBase(BaseModel):
-    product_id: int
+    product_batch_id: int
     date: date
-    price: float
+    discounted_price: float
 
 class ProductPriceCreate(ProductPriceBase):
     pass
