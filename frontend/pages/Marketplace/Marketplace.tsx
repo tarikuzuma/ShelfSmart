@@ -1,23 +1,30 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Leaf, ShoppingBag, Trash2 } from "lucide-react";
+
+type Product = {
+  id: number;
+  name: string;
+  category: string;
+};
 
 export default function Marketplace() {
-  const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] = useState<Product[]>([]);
 
   useEffect(() => {
     async function fetchProducts() {
       setLoading(true);
       setError("");
       try {
-        // Use the correct customer marketplace API endpoint
-        const res = await api.get("/api/v1/customer/marketplace/products");
+        const res = await api.get("/api/v1/products/");
         setProducts(res.data);
       } catch (err) {
-        setError("Failed to load products");
+        setError("Failed to load products.");
       } finally {
         setLoading(false);
       }
@@ -25,78 +32,135 @@ export default function Marketplace() {
     fetchProducts();
   }, []);
 
-  function addToCart(product) {
+  function addToCart(product: Product) {
     setCart((prev) => [...prev, product]);
   }
 
-  function removeFromCart(productId) {
+  function removeFromCart(productId: number) {
     setCart((prev) => prev.filter((p) => p.id !== productId));
   }
 
-  function getTotal() {
-    return cart.reduce((sum, p) => sum + (p.base_price || 0), 0);
-  }
+  const categories = useMemo(() => {
+    const set = new Set(products.map((product) => product.category));
+    return Array.from(set).sort();
+  }, [products]);
 
   return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-6">Marketplace</h1>
-      {loading && <div>Loading...</div>}
-      {error && <div className="text-red-500 mb-4">{error}</div>}
-      {!loading && !error && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          {products.map((product) => (
-            <div key={product.id} className="border rounded-lg p-4 flex flex-col">
-              <h2 className="text-lg font-semibold mb-2">{product.name}</h2>
-              {/* Show latest price if available */}
-              <div className="mb-1">
-                ₱{product.prices && product.prices.length > 0 ? product.prices[product.prices.length - 1].price : "-"}
-              </div>
-              {/* Show total delivered quantity minus total sold quantity */}
-              <div className="mb-1 text-sm text-muted-foreground">
-                Qty: {
-                  (product.deliveries?.reduce((sum, d) => sum + d.quantity, 0) || 0) -
-                  (product.sales?.reduce((sum, s) => sum + s.quantity, 0) || 0)
-                }
-              </div>
-              <div className="mb-1 text-sm text-muted-foreground">Expires: N/A</div>
-              <Button className="mt-auto" onClick={() => addToCart(product)}>
-                Add to Cart
-              </Button>
+    <div className="min-h-screen bg-background">
+      <header className="border-b border-border/60 bg-background/80">
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <Badge variant="sustainability" className="mb-2">
+                <Leaf className="h-3 w-3 mr-1" />
+                FreshPath Marketplace
+              </Badge>
+              <h1 className="font-display text-3xl md:text-4xl font-bold text-foreground">
+                Shop Fresh Deals
+              </h1>
+              <p className="text-muted-foreground max-w-xl">
+                Discover curated perishable essentials from nearby retailers. Built for clarity and speed.
+              </p>
             </div>
-          ))}
+            <div className="flex items-center gap-3 rounded-2xl border border-border/60 bg-card px-4 py-3">
+              <ShoppingBag className="h-4 w-4 text-primary" />
+              <div>
+                <p className="text-xs text-muted-foreground">Cart items</p>
+                <p className="font-display text-xl font-semibold text-foreground">{cart.length}</p>
+              </div>
+            </div>
+          </div>
         </div>
-      )}
-      <div className="fixed right-8 top-24 w-80 bg-white border rounded-lg shadow-lg p-6 z-50">
-        <h2 className="text-xl font-bold mb-4">Cart</h2>
-        {cart.length === 0 ? (
-          <div className="text-muted-foreground">Your cart is empty.</div>
-        ) : (
-          <div>
-            {cart.map((item) => (
-              <div key={item.id} className="flex items-center justify-between mb-2">
-                <span>{item.name}</span>
-                <span>
-                  ₱{item.prices && item.prices.length > 0 ? item.prices[item.prices.length - 1].price : "-"}
-                </span>
-                <Button size="sm" variant="destructive" onClick={() => removeFromCart(item.id)}>
-                  Remove
-                </Button>
-              </div>
-            ))}
-            <div className="mt-4 font-semibold">
-              Total: ₱{
-                cart.reduce(
-                  (sum, p) => sum + (p.prices && p.prices.length > 0 ? p.prices[p.prices.length - 1].price : 0),
-                  0
-                )
-              }
-            </div>
-            <Button className="mt-4 w-full" disabled>
-              Checkout (Demo Only)
-            </Button>
+      </header>
+
+      <main className="container mx-auto px-4 py-10">
+        {loading && (
+          <div className="rounded-2xl border border-border/60 bg-card p-6 text-muted-foreground">
+            Loading marketplace inventory...
           </div>
         )}
-      </div>
+        {!loading && error && (
+          <div className="mb-6 rounded-2xl border border-warning/40 bg-warning/10 p-4 text-sm text-warning">
+            {error}
+          </div>
+        )}
+
+        {!loading && (
+          <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+            <section>
+              <div className="flex flex-wrap items-center gap-3 mb-6">
+                {categories.map((category) => (
+                  <Badge key={category} variant="secondary">
+                    {category}
+                  </Badge>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                {products.map((product) => (
+                  <div
+                    key={product.id}
+                    className="group rounded-2xl border border-border/60 bg-card p-5 shadow-sm hover-lift"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-xs text-muted-foreground">{product.category}</p>
+                        <h2 className="font-display text-lg font-semibold text-foreground">
+                          {product.name}
+                        </h2>
+                      </div>
+                      <Badge variant="sustainability">Fresh</Badge>
+                    </div>
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      Local stock updated hourly. Best-by window optimized by AI.
+                    </p>
+                    <Button className="mt-4 w-full" onClick={() => addToCart(product)}>
+                      Add to Cart
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <aside className="lg:sticky lg:top-24 h-fit">
+              <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-display text-lg font-semibold">Cart</h2>
+                  <Badge variant="secondary">{cart.length} items</Badge>
+                </div>
+                {cart.length === 0 ? (
+                  <p className="mt-4 text-sm text-muted-foreground">
+                    Your cart is empty. Add products to see them here.
+                  </p>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {cart.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between rounded-xl border border-border/60 bg-background px-3 py-2"
+                      >
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{item.name}</p>
+                          <p className="text-xs text-muted-foreground">{item.category}</p>
+                        </div>
+                        <Button size="icon" variant="ghost" onClick={() => removeFromCart(item.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-6 flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Total items</span>
+                  <span className="font-semibold text-foreground">{cart.length}</span>
+                </div>
+                <Button className="mt-4 w-full" disabled>
+                  Checkout (Demo Only)
+                </Button>
+              </div>
+            </aside>
+          </div>
+        )}
+      </main>
     </div>
   );
 }
